@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
+import { LEAD_PIN_AUTHOR, STAGE_DONE_PIN } from './agent.ts';
 import { eventSchemaVersion, foldTasks } from './fold.ts';
 import type { DomainEvent, Workflow } from './model.ts';
 
@@ -79,6 +80,33 @@ describe('fold', () => {
     expect(tasks[0]?.attention?.message).toBe('CI 没过');
     expect(tasks[0]?.attention?.source).toBe('ci_failed');
     expect(tasks[0]?.attempts).toBe(0);
+  });
+
+  it('丢掉不是协调 Agent 写的重点', () => {
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({
+        type: 'pin.added',
+        payload: { pinId: 'claude', message: '根因', reason: '根因', author: 'Claude', stageId: 'reproduce' },
+      }),
+      ev({
+        type: 'pin.added',
+        payload: {
+          pinId: 'lead',
+          message: STAGE_DONE_PIN,
+          reason: STAGE_DONE_PIN,
+          author: LEAD_PIN_AUTHOR,
+          stageId: 'reproduce',
+        },
+      }),
+      ev({
+        type: 'pin.added',
+        payload: { pinId: 'codex', message: '改动', reason: '改动', author: 'Codex', stageId: 'fix' },
+      }),
+    ]);
+    expect(tasks[0]?.pins.map((pin) => pin.author)).toEqual([LEAD_PIN_AUTHOR]);
+    expect(tasks[0]?.pins[0]?.message).toBe(STAGE_DONE_PIN);
+    expect(tasks[0]?.pins[0]?.reason).toBe(STAGE_DONE_PIN);
   });
 
   it('缺省事件版本是 1，别的版本不折叠', () => {

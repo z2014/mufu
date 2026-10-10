@@ -7,10 +7,9 @@ export type AgentKind = 'codex' | 'claude';
 export type OperationKind = 'shell' | 'file_edit' | 'network' | 'mcp' | 'final' | 'other';
 
 export type AgentEvent =
-  | { type: 'message'; author: string; text: string; pinReason?: string }
+  | { type: 'message'; author: string; text: string }
   | { type: 'system'; text: string }
   | { type: 'stage'; stageId: string }
-  | { type: 'pin'; message: string; reason: string; author: string }
   | { type: 'artifact'; title: string; detail: string }
   | {
       type: 'approval_request';
@@ -71,6 +70,12 @@ export class SubscriptionRefused extends Error {
     this.name = 'SubscriptionRefused';
   }
 }
+
+/** 日志里 pin 的 author。fold 丢掉任何不是这个作者的重点。 */
+export const LEAD_PIN_AUTHOR = 'lead';
+
+/** 阶段 1 的桩给每个完成阶段钉的正文和理由。 */
+export const STAGE_DONE_PIN = '阶段完成';
 
 export function leadIntro(workflowTitle: string, stageTitles: string[]): string {
   const steps = stageTitles.join('、');
