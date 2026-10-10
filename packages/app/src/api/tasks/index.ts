@@ -59,6 +59,7 @@ const taskViewSchema = z.object({
       author: z.string(),
       stageId: z.string(),
       read: z.boolean(),
+      messageId: z.string().optional(),
     }),
   ),
   artifacts: z.array(
@@ -135,8 +136,12 @@ export async function listWorkflows(): Promise<WorkflowChoice[]> {
   return parse(z.array(workflowSchema), await rpc('workflow.list'), '流程');
 }
 
-export async function resolveGate(gateId: string, decision: 'approve' | 'reject'): Promise<unknown> {
-  return rpc('gate.resolve', { gateId, decision });
+export async function resolveGate(
+  gateId: string,
+  decision: 'approve' | 'reject',
+  comment?: string,
+): Promise<unknown> {
+  return rpc('gate.resolve', { gateId, decision, comment });
 }
 
 export async function readPins(taskId: string): Promise<TaskView | null> {

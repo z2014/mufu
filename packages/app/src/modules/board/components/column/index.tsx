@@ -8,7 +8,17 @@ const copy: Record<Column, { title: string; hint: string }> = {
   to_review: { title: '待验收', hint: '点一下就结束' },
 };
 
-export function BoardColumn({ column, tasks }: { column: Column; tasks: TaskView[] }) {
+export function BoardColumn({
+  column,
+  tasks,
+  pendingGateId,
+  onDecide,
+}: {
+  column: Column;
+  tasks: TaskView[];
+  pendingGateId?: string | null;
+  onDecide?: (task: TaskView, decision: 'approve' | 'reject', comment?: string) => void;
+}) {
   const sorted = sortInColumn(tasks);
   const queued = column === 'running' ? sorted.filter((task) => task.status === 'queued') : [];
   const active = column === 'running' ? sorted.filter((task) => task.status !== 'queued') : sorted;
@@ -23,7 +33,12 @@ export function BoardColumn({ column, tasks }: { column: Column; tasks: TaskView
       </header>
       {sorted.length === 0 ? <p className="text-muted-foreground px-1.5 text-xs">这一列还没有任务</p> : null}
       {active.map((task) => (
-        <TaskCard key={task.id} task={task} />
+        <TaskCard
+          key={task.id}
+          task={task}
+          pending={pendingGateId === task.pendingGate?.id}
+          onDecide={(decision, comment) => onDecide?.(task, decision, comment)}
+        />
       ))}
       {queued.length > 0 ? <p className="text-muted-foreground px-1.5 py-1.5 text-[11px]">等待开始</p> : null}
       {queued.map((task) => (

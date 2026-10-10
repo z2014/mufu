@@ -19,7 +19,7 @@ function usage(): void {
   mufu task events <taskId>
   mufu task list
   mufu gate approve <gateId>
-  mufu gate reject <gateId>
+  mufu gate reject <gateId> --comment 原因
 `);
 }
 
@@ -133,7 +133,13 @@ async function main(): Promise<void> {
   }
   if (command === 'gate' && (sub === 'approve' || sub === 'reject')) {
     if (!extra) throw new Error('需要 gateId');
-    await callDaemon('gate.resolve', { gateId: extra, decision: sub === 'approve' ? 'approve' : 'reject' });
+    const comment = flag('--comment');
+    if (sub === 'reject' && (!comment || comment.trim().length === 0)) throw new Error('打回要写一句原因');
+    await callDaemon('gate.resolve', {
+      gateId: extra,
+      decision: sub === 'approve' ? 'approve' : 'reject',
+      comment,
+    });
     process.stdout.write(sub === 'approve' ? `已通过门禁 ${extra}\n` : `已打回门禁 ${extra}\n`);
     return;
   }

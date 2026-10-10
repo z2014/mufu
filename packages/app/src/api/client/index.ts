@@ -23,6 +23,14 @@ let socket: WebSocket | null = null;
 let connecting: Promise<WebSocket> | null = null;
 let nextId = 1;
 const pending = new Map<number, Pending>();
+const pushes = new Set<(method: string, params: unknown) => void>();
+
+/** 守护进程推来的事件。界面用它刷新查询，不自己轮询。 */
+export function onDaemonPush(listener: (method: string, params: unknown) => void): () => void {
+  pushes.add(listener);
+  void connect().catch(() => undefined);
+  return () => pushes.delete(listener);
+}
 
 function failAll(error: Error): void {
   for (const item of pending.values()) item.reject(error);
@@ -51,7 +59,13 @@ function openSocket(): Promise<WebSocket> {
       } catch {
         return;
       }
-      if (typeof parsed.id !== 'number') return;
+      if (typeof parsed.id !== 'number') {
+        const note = parsed as { method?: string; params?: unknown };
+        if (typeof note.method === 'string') {
+          for (const listener of pushes) listener(note.method, note.params);
+        }
+        return;
+      }
       const waiter = pending.get(parsed.id);
       if (!waiter) return;
       pending.delete(parsed.id);

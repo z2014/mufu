@@ -1,7 +1,7 @@
-import { columnOf, type TaskView } from '@mufu/core/view';
+import type { TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 import {
   addNote,
@@ -16,9 +16,11 @@ import {
 } from '@/api/tasks';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
+import { TaskNav } from '@/common/components/task-nav';
 import { cn } from '@/common/utils';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
 import { GateCard } from '@/modules/task/components/gate-card';
+import { MembersButton } from '@/modules/task/components/members';
 import { PinStrip } from '@/modules/task/components/pin-strip';
 import { usePreferences } from '@/store/preferences';
 
@@ -26,13 +28,12 @@ export function Component() {
   const { taskId = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const list = useQuery({ queryKey: taskKeys.list, queryFn: listTasks, refetchInterval: 1500 });
+  const list = useQuery({ queryKey: taskKeys.list, queryFn: listTasks });
   const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const task = useQuery({
     queryKey: taskKeys.detail(taskId),
     queryFn: () => getTask(taskId),
     enabled: taskId.length > 0,
-    refetchInterval: 1500,
   });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
@@ -44,10 +45,10 @@ export function Component() {
     await queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
   };
   const gate = useMutation({
-    mutationFn: (decision: 'approve' | 'reject') => {
+    mutationFn: (input: { decision: 'approve' | 'reject'; comment?: string }) => {
       const gateId = task.data?.pendingGate?.id;
       if (!gateId) throw new DaemonError('没有待处理的门禁');
-      return resolveGate(gateId, decision);
+      return resolveGate(gateId, input.decision, input.comment);
     },
     onSuccess: () => invalidate(),
   });
@@ -80,19 +81,12 @@ export function Component() {
   });
 
   const current = task.data;
-  const needsYou = (list.data ?? []).filter((item) => columnOf(item) === 'needs_you' || columnOf(item) === 'to_review');
-  const running = (list.data ?? []).filter((item) => columnOf(item) === 'running');
 
   return (
     <AppShell
       active="task"
       onNewTask={() => setOpen(true)}
-      menu={
-        <>
-          <TaskGroup title="需要你" tasks={needsYou} currentId={taskId} />
-          <TaskGroup title="进行中" tasks={running} currentId={taskId} muted />
-        </>
-      }
+      menu={<TaskNav tasks={list.data ?? []} currentId={taskId} />}
       footer={
         <p className="flex items-center gap-2.5 px-2.5 pt-4">
           <span className="bg-accent inline-flex size-7 items-center justify-center rounded-full text-xs">Z</span>
@@ -118,15 +112,20 @@ export function Component() {
             <>
               <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
                 <h1 className="font-semibold">{current.title}</h1>
-                <span className="text-muted-foreground text-xs">
-                  {current.workflow.title}
-                  {agentTitle(current.agentKind)}
-                </span>
-                <ol className="text-muted-foreground hidden items-center gap-2 text-xs md:flex">
+                <span className="text-muted-foreground text-xs">{current.workflow.title}</span>
+                {current.attention ? (
+                  <span
+                    className="bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[11px] font-bold"
+                    title={current.attention.message}
+                  >
+                    !
+                  </span>
+                ) : null}
+                <ol className="text-muted-foreground ml-auto hidden items-center gap-2 text-xs md:flex">
                   {current.workflow.stages.map((stage, index) => {
                     const currentIndex = current.workflow.stages.findIndex((item) => item.id === current.stageId);
-                    const done = index < currentIndex;
-                    const now = index === currentIndex;
+                    const done = index < currentIndex || current.status === 'done';
+                    const now = index === currentIndex && current.status !== 'done';
                     return (
                       <li key={stage.id} className="flex items-center gap-2">
                         {index > 0 ? <span className="bg-border h-px w-4" /> : null}
@@ -137,8 +136,9 @@ export function Component() {
                               done && 'border-primary bg-primary text-primary-foreground',
                               now && 'border-foreground',
                             )}
+                            aria-hidden
                           >
-                            {done ? '✓' : ''}
+                            {done ? '✓' : '○'}
                           </span>
                           {stage.title}
                         </span>
@@ -146,26 +146,26 @@ export function Component() {
                     );
                   })}
                 </ol>
-                {current.attention ? (
-                  <span
-                    className="bg-primary text-primary-foreground ml-auto inline-flex size-5 items-center justify-center rounded-full text-[11px] font-bold"
-                    title={current.attention.message}
-                  >
-                    !
-                  </span>
-                ) : null}
+                <MembersButton task={current} />
               </header>
-              <PinStrip pins={current.pins} onReadAll={() => pins.mutate()} />
+              <PinStrip
+                pins={current.pins}
+                onReadAll={() => pins.mutate()}
+                onOpen={(pin) => {
+                  const target = pin.messageId ? `msg-${pin.messageId}` : '';
+                  document.getElementById(target)?.scrollIntoView({ block: 'center' });
+                }}
+              />
               <div className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-14">
                 {current.messages.map((message) => (
-                  <Message key={message.id} message={message} />
+                  <Message key={message.id} message={message} pins={current.pins} />
                 ))}
               </div>
               {current.pendingGate ? (
                 <GateCard
                   gate={current.pendingGate}
                   pending={gate.isPending}
-                  onDecide={(decision) => gate.mutate(decision)}
+                  onDecide={(decision, comment) => gate.mutate({ decision, comment })}
                 />
               ) : null}
               {gate.isError ? (
@@ -226,65 +226,28 @@ export function Component() {
   );
 }
 
-function agentTitle(kind: string | null): string {
-  if (kind === 'claude') return ' · Claude';
-  if (kind === 'codex') return ' · Codex';
-  if (kind === 'fake') return ' · 替身';
-  return '';
-}
-
-function TaskGroup({
-  title,
-  tasks,
-  currentId,
-  muted,
-}: {
-  title: string;
-  tasks: TaskView[];
-  currentId: string;
-  muted?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-muted-foreground px-2.5 pb-1 pt-4 text-xs">{title}</p>
-      {tasks.length === 0 ? <p className="text-muted-foreground px-2.5 text-xs">无</p> : null}
-      {tasks.map((item) => (
-        <Link
-          key={item.id}
-          to={`/task/${item.id}`}
-          className={cn(
-            'flex items-center rounded-md px-2.5 py-2',
-            item.id === currentId && 'bg-accent',
-            muted && item.id !== currentId && 'text-muted-foreground',
-          )}
-        >
-          <span className="truncate">{item.title}</span>
-          {item.attention ? <span className="ml-auto text-xs font-bold">!</span> : null}
-          {!item.attention && item.pendingGate ? (
-            <span className="bg-foreground ml-auto size-1.5 rounded-full" />
-          ) : null}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-function Message({ message }: { message: TaskView['messages'][number] }) {
+function Message({ message, pins }: { message: TaskView['messages'][number]; pins: TaskView['pins'] }) {
+  const pin = pins.find((item) => item.messageId === message.id);
   if (message.role === 'system') {
-    return <p className="text-muted-foreground mb-4 text-xs">{message.text}</p>;
+    return (
+      <p id={`msg-${message.id}`} className="text-muted-foreground mb-4 text-xs">
+        {message.text}
+      </p>
+    );
   }
   if (message.role === 'user') {
     return (
-      <div className="mb-5 flex justify-end">
+      <div id={`msg-${message.id}`} className="mb-5 flex justify-end">
         <p className="bg-secondary max-w-lg rounded-xl px-3.5 py-2.5">{message.text}</p>
       </div>
     );
   }
+  const pinned = Boolean(message.pinReason || pin);
   return (
-    <div className={cn('mb-5 max-w-xl', message.pinReason && 'border-border border-l-2 pl-3')}>
+    <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pinned && 'border-border border-l-2 pl-3')}>
       <p className="text-muted-foreground mb-1 text-xs">
         {message.author}
-        {message.pinReason ? <em className="ml-2 font-normal">📌 {message.pinReason}</em> : null}
+        {message.pinReason || pin ? <em className="ml-2 font-normal">📌 {message.pinReason ?? pin?.reason}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
     </div>

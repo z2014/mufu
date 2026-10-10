@@ -128,6 +128,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
         author: str(payload, 'author'),
         stageId: str(payload, 'stageId'),
         read: false,
+        messageId: typeof payload.messageId === 'string' ? payload.messageId : undefined,
       });
       break;
     case 'pin.read':

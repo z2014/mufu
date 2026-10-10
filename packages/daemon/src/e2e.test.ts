@@ -131,7 +131,7 @@ describe('fix bug tracer', () => {
     }
   });
 
-  it('打回之后任务回到等你，不算完成', async () => {
+  it('打回要写一句，任务回到进行中，不算完成', async () => {
     const home = mkdtempSync(join(tmpdir(), 'mufu-home-'));
     const daemon = await startDaemon({
       home,
@@ -146,10 +146,14 @@ describe('fix bug tracer', () => {
       expect(created.code, created.stderr).toBe(0);
       const taskId = (await listIds(home))[0]!;
       const waiting = await waitFor(home, taskId, (task) => task.pendingGate !== null);
-      const rejected = await cliRun(['gate', 'reject', waiting.pendingGate!.id], home);
+      const missing = await cliRun(['gate', 'reject', waiting.pendingGate!.id], home);
+      expect(missing.code).not.toBe(0);
+      const rejected = await cliRun(['gate', 'reject', waiting.pendingGate!.id, '--comment', '边界还没盖住'], home);
       expect(rejected.code, rejected.stderr).toBe(0);
-      const after = await waitFor(home, taskId, (task) => task.pendingGate === null && task.status === 'needs_you');
-      expect(after.status).toBe('needs_you');
+      const after = await waitFor(home, taskId, (task) => task.pendingGate === null && task.status === 'running');
+      expect(after.status).toBe('running');
+      expect(after.attempts).toBe(0);
+      expect(after.messages.some((message) => message.text.includes('边界还没盖住'))).toBe(true);
     } finally {
       await daemon.close();
       rmSync(home, { recursive: true, force: true });

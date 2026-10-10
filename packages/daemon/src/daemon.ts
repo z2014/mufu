@@ -3,7 +3,7 @@ import { createServer as createNetServer, type Socket } from 'node:net';
 import { readFileSync, rmSync } from 'node:fs';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { join } from 'node:path';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { parse as parseYaml } from 'yaml';
 
 import { createClaudeAdapter, createCodexAdapter, createFakeAdapter } from '@mufu/adapters';
@@ -28,7 +28,7 @@ import {
 } from '@mufu/core';
 import { workflowSchema, type RpcRequest, type RpcResponse } from '@mufu/schema';
 
-import { GateBroker, type Decision } from './broker.ts';
+import { GateBroker, type Decision, type GateResolution } from './broker.ts';
 import { doctor, type DoctorReport } from './doctor.ts';
 import { holdAwake } from './sleep.ts';
 import { assertOpenRouterAccount, createDefaultSecretStore } from './secrets.ts';
@@ -68,6 +68,15 @@ type Created = {
 
 export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon> {
   const log = new SqliteEventLog(join(options.home, 'events.sqlite'));
+  const subscribers = new Set<WebSocket>();
+  const write = (event: { taskId: string | null; type: string; payload: Record<string, unknown> }) => {
+    const row = log.append(event);
+    const frame = JSON.stringify({ method: 'event', params: row });
+    for (const client of subscribers) {
+      if (client.readyState === WebSocket.OPEN) client.send(frame);
+    }
+    return row;
+  };
   const broker = new GateBroker();
   const running = new Set<string>();
   const maxConcurrent = options.maxConcurrent ?? Number.POSITIVE_INFINITY;
@@ -86,7 +95,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
   const one = (taskId: string) => foldTask(log.readAll(), taskId);
 
   const setStatus = (taskId: string, status: TaskView['status']) => {
-    log.append({ taskId, type: 'task.status', payload: { status } });
+    write({ taskId, type: 'task.status', payload: { status } });
   };
 
   const activeCount = () =>
@@ -95,14 +104,14 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
 
   function failTask(taskId: string, error: unknown, tool: string): void {
     if (error instanceof SubscriptionRefused) {
-      log.append({
+      write({
         taskId,
         type: 'environment.failed',
         payload: { tool: error.tool, source: error.source, message: error.message },
       });
     } else {
       const message = error instanceof Error ? error.message : String(error);
-      log.append({ taskId, type: 'environment.failed', payload: { message, tool, source: 'launch' } });
+      write({ taskId, type: 'environment.failed', payload: { message, tool, source: 'launch' } });
     }
     setStatus(taskId, 'needs_you');
   }
@@ -111,7 +120,10 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     live.set(taskId, session);
     let outcome: 'ok' | 'stop' = 'stop';
     for await (const event of session.events) {
-      await applyAgentEvent(taskId, event, session.decide.bind(session));
+      await applyAgentEvent(taskId, event, {
+        decide: session.decide.bind(session),
+        followUp: session.followUp?.bind(session),
+      });
       if (event.type === 'completed') {
         outcome = event.ok ? 'ok' : 'stop';
         break;
@@ -132,9 +144,9 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       running.delete(taskId);
       return;
     }
-    log.append({ taskId, type: 'run.started', payload: { runId: randomUUID() } });
+    write({ taskId, type: 'run.started', payload: { runId: randomUUID() } });
     if (!task.messages.some((message) => message.role === 'lead')) {
-      log.append({
+      write({
         taskId,
         type: 'agent.message',
         payload: {
@@ -172,7 +184,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       prompt: task.prompt,
       resumeSessionId: task.sessions.fake ?? task.sessionId ?? undefined,
     });
-    log.append({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind: 'fake' } });
+    write({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind: 'fake' } });
     const outcome = await consume(taskId, session);
     const latest = one(taskId);
     if (outcome === 'ok' && latest?.status === 'running') setStatus(taskId, 'done');
@@ -199,7 +211,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         failTask(taskId, error, kind);
         return;
       }
-      log.append({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind } });
+      write({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind } });
       let openedGate = false;
       const wrapped: AgentSession = {
         sessionId: session.sessionId,
@@ -212,7 +224,10 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       let outcome: 'ok' | 'stop' | 'open' = 'open';
       for await (const event of session.events) {
         if (event.type === 'approval_request') openedGate = true;
-        await applyAgentEvent(taskId, event, session.decide.bind(session));
+        await applyAgentEvent(taskId, event, {
+          decide: session.decide.bind(session),
+          followUp: session.followUp?.bind(session),
+        });
         if (event.type === 'completed') {
           outcome = event.ok ? 'ok' : 'stop';
           break;
@@ -232,11 +247,9 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       if (!latest || latest.status === 'needs_you' || latest.status === 'done' || outcome !== 'ok') return;
       const current = latest.workflow.stages.find((item) => item.id === latest.stageId) ?? stage;
       if (current.gate && !openedGate) {
-        const decision = await openProductGate(taskId, current.gate, `${current.title}`);
-        if (decision === 'reject') {
-          setStatus(taskId, 'needs_you');
-          return;
-        }
+        const resolution = await openProductGate(taskId, current.gate, `${current.title}`, wrapped.followUp);
+        if (resolution.cancelled) return;
+        if (resolution.decision === 'reject') return;
       }
       const after = one(taskId);
       if (!after || after.status === 'needs_you' || after.status === 'done') return;
@@ -246,13 +259,18 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         setStatus(taskId, 'done');
         return;
       }
-      log.append({ taskId, type: 'stage.entered', payload: { stageId: next.id } });
+      write({ taskId, type: 'stage.entered', payload: { stageId: next.id } });
     }
   }
 
-  async function openProductGate(taskId: string, gate: 'final' | 'stage', summary: string): Promise<Decision> {
+  async function openProductGate(
+    taskId: string,
+    gate: 'final' | 'stage',
+    summary: string,
+    followUp?: (text: string) => string | void,
+  ): Promise<GateResolution> {
     const gateId = randomUUID();
-    log.append({
+    write({
       taskId,
       type: 'gate.opened',
       payload: {
@@ -266,36 +284,76 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     });
     setStatus(taskId, gate === 'final' ? 'to_review' : 'needs_you');
     broker.open(gateId);
-    const decision = await broker.wait(gateId);
-    log.append({ taskId, type: 'gate.resolved', payload: { gateId, decision } });
-    if (decision === 'approve') {
-      const latest = one(taskId);
-      if (latest && latest.status !== 'done' && latest.status !== 'needs_you') setStatus(taskId, 'running');
+    const resolution = await broker.wait(gateId);
+    applyResolution(taskId, gateId, resolution, followUp);
+    return resolution;
+  }
+
+  function applyResolution(
+    taskId: string,
+    gateId: string,
+    resolution: GateResolution,
+    followUp?: (text: string) => string | void,
+  ): void {
+    if (resolution.cancelled) return;
+    write({
+      taskId,
+      type: 'gate.resolved',
+      payload: {
+        gateId,
+        decision: resolution.decision,
+        ...(resolution.comment ? { comment: resolution.comment } : {}),
+      },
+    });
+    if (resolution.decision === 'reject') {
+      const comment = resolution.comment ?? '';
+      write({
+        taskId,
+        type: 'agent.message',
+        payload: { role: 'user', author: '你', text: comment },
+      });
+      const reply = followUp?.(comment);
+      if (typeof reply === 'string' && reply.length > 0) {
+        write({
+          taskId,
+          type: 'agent.message',
+          payload: { role: 'agent', author: agentLabel(one(taskId)?.agentKind), text: reply },
+        });
+      }
+      setStatus(taskId, 'running');
+      return;
     }
-    return decision;
+    const latest = one(taskId);
+    if (latest && latest.status !== 'done' && latest.status !== 'needs_you') setStatus(taskId, 'running');
   }
 
   async function applyAgentEvent(
     taskId: string,
     event: AgentEvent,
-    decide: (requestId: string, decision: Decision) => Promise<void>,
+    session: {
+      decide: (requestId: string, decision: Decision) => Promise<void>;
+      followUp?: (text: string) => string | void;
+    },
   ): Promise<void> {
     const current = one(taskId);
     if (!current) return;
     if (event.type === 'stage') {
-      log.append({ taskId, type: 'stage.entered', payload: { stageId: event.stageId } });
+      write({ taskId, type: 'stage.entered', payload: { stageId: event.stageId } });
     } else if (event.type === 'message') {
-      log.append({
+      write({
         taskId,
         type: 'agent.message',
         payload: { role: 'agent', author: event.author, text: event.text, pinReason: event.pinReason },
       });
     } else if (event.type === 'system') {
-      log.append({ taskId, type: 'agent.message', payload: { role: 'system', author: '系统', text: event.text } });
+      write({ taskId, type: 'agent.message', payload: { role: 'system', author: '系统', text: event.text } });
     } else if (event.type === 'pin') {
       const count = current.pins.filter((pin) => pin.stageId === current.stageId).length;
       if (count < MAX_PINS_PER_STAGE) {
-        log.append({
+        const messageId = [...current.messages]
+          .reverse()
+          .find((message) => message.role === 'agent' || message.role === 'lead')?.id;
+        write({
           taskId,
           type: 'pin.added',
           payload: {
@@ -304,11 +362,12 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
             reason: event.reason,
             author: event.author,
             stageId: current.stageId,
+            ...(messageId ? { messageId } : {}),
           },
         });
       }
     } else if (event.type === 'artifact') {
-      log.append({
+      write({
         taskId,
         type: 'artifact.added',
         payload: { artifactId: randomUUID(), title: event.title, detail: event.detail },
@@ -316,7 +375,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     } else if (event.type === 'approval_request') {
       const gateId = randomUUID();
       const kind = event.gate === 'final' ? 'final' : 'stage';
-      log.append({
+      write({
         taskId,
         type: 'gate.opened',
         payload: {
@@ -330,35 +389,33 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       });
       setStatus(taskId, kind === 'final' ? 'to_review' : 'needs_you');
       broker.open(gateId);
-      const decision = await broker.wait(gateId);
-      log.append({ taskId, type: 'gate.resolved', payload: { gateId, decision } });
-      await decide(event.requestId, decision);
-      if (decision === 'reject') {
-        setStatus(taskId, 'needs_you');
-      } else if (current.status !== 'done') {
-        const latest = one(taskId);
-        if (latest && latest.status !== 'done' && latest.status !== 'needs_you') setStatus(taskId, 'running');
-      }
+      const resolution = await broker.wait(gateId);
+      applyResolution(taskId, gateId, resolution, session.followUp);
+      if (!resolution.cancelled) await session.decide(event.requestId, resolution.decision);
     } else if (event.type === 'environment_failure') {
-      log.append({
+      write({
         taskId,
         type: 'environment.failed',
         payload: { message: event.message, tool: event.tool, source: event.source },
       });
       setStatus(taskId, 'needs_you');
     } else if (event.type === 'interrupted') {
-      log.append({ taskId, type: 'run.finished', payload: { outcome: 'interrupted' } });
+      write({ taskId, type: 'run.finished', payload: { outcome: 'interrupted' } });
     } else if (event.type === 'completed') {
       if (!event.ok) {
+        if (event.reason === 'rejected') {
+          write({ taskId, type: 'run.finished', payload: { outcome: 'rejected' } });
+          return;
+        }
         const attempts = current.attempts + 1;
-        log.append({
+        write({
           taskId,
           type: 'attempt.counted',
           payload: { attempt: attempts, reason: event.reason ?? 'failed' },
         });
-        log.append({ taskId, type: 'run.finished', payload: { outcome: 'failed' } });
+        write({ taskId, type: 'run.finished', payload: { outcome: 'failed' } });
         if (attempts >= MAX_ATTEMPTS) {
-          log.append({
+          write({
             taskId,
             type: 'environment.failed',
             payload: { message: `已经失败 ${attempts} 次`, source: 'attempts' },
@@ -368,7 +425,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
           setStatus(taskId, 'needs_you');
         }
       } else {
-        log.append({ taskId, type: 'run.finished', payload: { outcome: 'completed' } });
+        write({ taskId, type: 'run.finished', payload: { outcome: 'completed' } });
       }
     }
   }
@@ -395,13 +452,13 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     };
     const taskId = randomUUID();
     const seq = views().length + 1;
-    log.append({
+    write({
       taskId,
       type: 'task.created',
       payload: { seq, title: input.title, prompt: input.prompt, workflow, repoPath: input.repoPath ?? null },
     });
     const path = await createWorkspace(input.repoPath, taskId, options.home);
-    log.append({ taskId, type: 'workspace.created', payload: { path } });
+    write({ taskId, type: 'workspace.created', payload: { path } });
     if (activeCount() >= maxConcurrent) {
       setStatus(taskId, 'queued');
     } else {
@@ -413,10 +470,11 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     return created;
   }
 
-  function resolveGate(gateId: string, decision: Decision): TaskView {
+  function resolveGate(gateId: string, decision: Decision, comment?: string): TaskView {
     const task = views().find((item) => item.pendingGate?.id === gateId);
     if (!task?.pendingGate) throw new Error('没有待处理的门禁');
-    broker.resolve(gateId, decision);
+    if (decision === 'reject' && (!comment || comment.trim().length === 0)) throw new Error('打回要写一句原因');
+    broker.resolve(gateId, decision, comment?.trim());
     return task;
   }
 
@@ -463,7 +521,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         const text = String(params.text ?? '').trim();
         if (!text) throw new Error('写点什么');
         if (!one(taskId)) throw new Error('没有这个任务');
-        log.append({
+        write({
           taskId,
           type: 'agent.message',
           payload: { role: 'user', author: '你', text },
@@ -472,7 +530,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         const reply = session?.followUp?.(text);
         if (typeof reply === 'string' && reply.length > 0) {
           const kind = one(taskId)?.agentKind;
-          log.append({
+          write({
             taskId,
             type: 'agent.message',
             payload: { role: 'agent', author: agentLabel(kind), text: reply },
@@ -481,10 +539,14 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         return one(taskId);
       }
       case 'gate.resolve':
-        return resolveGate(String(params.gateId), params.decision === 'reject' ? 'reject' : 'approve');
+        return resolveGate(
+          String(params.gateId),
+          params.decision === 'reject' ? 'reject' : 'approve',
+          typeof params.comment === 'string' ? params.comment : undefined,
+        );
       case 'pin.readAll': {
         const taskId = String(params.taskId);
-        log.append({ taskId, type: 'pin.read', payload: {} });
+        write({ taskId, type: 'pin.read', payload: {} });
         return one(taskId);
       }
       case 'task.merge':
@@ -519,7 +581,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     res.end(hint);
   });
   const wss = new WebSocketServer({ server: http });
-  wss.on('connection', (socketConnection) => attachWebSocket(socketConnection, handle));
+  wss.on('connection', (socketConnection) => attachWebSocket(socketConnection, handle, subscribers));
   const wsPort = await new Promise<number>((resolve, reject) => {
     const fail = (error: Error) => {
       http.close(() => {
@@ -665,7 +727,13 @@ function attachNdjson(connection: Socket, handle: (request: RpcRequest) => Promi
   });
 }
 
-function attachWebSocket(connection: WebSocket, handle: (request: RpcRequest) => Promise<unknown>): void {
+function attachWebSocket(
+  connection: WebSocket,
+  handle: (request: RpcRequest) => Promise<unknown>,
+  subscribers: Set<WebSocket>,
+): void {
+  subscribers.add(connection);
+  connection.on('close', () => subscribers.delete(connection));
   connection.on('message', (data) => {
     void answer(String(data), handle).then((response) => connection.send(JSON.stringify(response)));
   });

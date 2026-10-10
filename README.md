@@ -62,7 +62,7 @@ pnpm mufu -- task list
 pnpm mufu -- task status <taskId>
 pnpm mufu -- task events <taskId>
 pnpm mufu -- gate approve <gateId>
-pnpm mufu -- gate reject <gateId>
+pnpm mufu -- gate reject <gateId> --comment "原因"
 pnpm mufu -- doctor
 ```
 

@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { connectionKeys, fetchDoctor } from '@/api/connections';
-import { createTask, DaemonError, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
+import { createTask, DaemonError, listTasks, listWorkflows, resolveGate, taskKeys } from '@/api/tasks';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
+import { TaskNav } from '@/common/components/task-nav';
 import { Button } from '@/common/components/ui/button';
 import { cn } from '@/common/utils';
 import { BoardColumn } from '@/modules/board/components/column';
@@ -25,12 +26,19 @@ function group(tasks: TaskView[]): Record<Column, TaskView[]> {
 export function Component() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const tasks = useQuery({ queryKey: taskKeys.list, queryFn: listTasks, refetchInterval: 1500 });
+  const tasks = useQuery({ queryKey: taskKeys.list, queryFn: listTasks });
   const doctor = useQuery({ queryKey: connectionKeys.doctor, queryFn: fetchDoctor, retry: false });
   const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
   const [open, setOpen] = useState(false);
+  const gate = useMutation({
+    mutationFn: (input: { gateId: string; decision: 'approve' | 'reject'; comment?: string }) =>
+      resolveGate(input.gateId, input.decision, input.comment),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: taskKeys.list });
+    },
+  });
   const create = useMutation({
     mutationFn: (input: NewTaskInput) =>
       createTask({
@@ -54,6 +62,7 @@ export function Component() {
     <AppShell
       active="board"
       onNewTask={() => setOpen(true)}
+      menu={<TaskNav tasks={tasks.data ?? []} />}
       footer={
         <p className="text-muted-foreground hidden px-2.5 pt-3 text-[11px] md:block">
           Codex <Dot on={doctor.data?.tools.find((tool) => tool.name === 'codex')?.installed} /> Claude{' '}
@@ -63,21 +72,12 @@ export function Component() {
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="text-muted-foreground flex h-12 items-center gap-3 border-b px-4">
-          <span>全部项目</span>
-          <span className="hidden sm:inline">排序</span>
-          <span className="hidden sm:inline">模板：全部</span>
           <span className="text-foreground">
             等你 {grouped?.needs_you.length ?? 0} · 待验收 {grouped?.to_review.length ?? 0}
           </span>
           <Button className="ml-auto" size="sm" onClick={() => setOpen(true)}>
             ＋ 新任务
           </Button>
-          <div className="hidden gap-1 sm:flex">
-            <span className="bg-accent text-foreground rounded px-1.5 py-0.5">▦</span>
-            <span className="px-1.5 py-0.5" aria-disabled="true">
-              ☰
-            </span>
-          </div>
         </header>
         {tasks.isPending ? <p className="text-muted-foreground p-6 text-sm">正在读取任务</p> : null}
         {tasks.isError ? (
@@ -94,7 +94,17 @@ export function Component() {
         {grouped ? (
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 overflow-auto p-3 md:grid-cols-3 md:p-4">
             {columns.map((column) => (
-              <BoardColumn key={column} column={column} tasks={grouped[column]} />
+              <BoardColumn
+                key={column}
+                column={column}
+                tasks={grouped[column]}
+                pendingGateId={gate.isPending ? gate.variables?.gateId : null}
+                onDecide={(task, decision, comment) => {
+                  const gateId = task.pendingGate?.id;
+                  if (!gateId) return;
+                  gate.mutate({ gateId, decision, comment });
+                }}
+              />
             ))}
           </div>
         ) : null}

@@ -1,6 +1,14 @@
 import type { PinView } from '@mufu/core/view';
 
-export function PinStrip({ pins, onReadAll }: { pins: PinView[]; onReadAll: () => void }) {
+export function PinStrip({
+  pins,
+  onReadAll,
+  onOpen,
+}: {
+  pins: PinView[];
+  onReadAll: () => void;
+  onOpen: (pin: PinView) => void;
+}) {
   const unread = pins.filter((pin) => !pin.read);
   if (unread.length === 0) return null;
   return (
@@ -16,10 +24,15 @@ export function PinStrip({ pins, onReadAll }: { pins: PinView[]; onReadAll: () =
         </button>
       </div>
       {unread.map((pin) => (
-        <p key={pin.id} className="flex py-1 text-sm">
+        <button
+          key={pin.id}
+          type="button"
+          className="focus-visible:ring-ring flex w-full py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2"
+          onClick={() => onOpen(pin)}
+        >
           {pin.message}
-          <span className="text-muted-foreground ml-auto text-xs">{pin.author}</span>
-        </p>
+          <span className="text-muted-foreground ml-auto text-xs">{pin.author} ›</span>
+        </button>
       ))}
     </div>
   );
