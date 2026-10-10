@@ -1,51 +1,33 @@
-import { randomUUID } from 'node:crypto';
-import { createServer as createNetServer, type Socket } from 'node:net';
-import { readFileSync, rmSync } from 'node:fs';
-import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { join } from 'node:path';
-import { WebSocket, WebSocketServer } from 'ws';
-import { parse as parseYaml } from 'yaml';
+
+import { WebSocket } from 'ws';
 
 import { createClaudeAdapter, createCodexAdapter, createFakeAdapter } from '@mufu/adapters';
-import {
-  DAEMON_WS_PORT,
-  DEV_PORT,
-  MAX_ATTEMPTS,
-  MAX_PINS_PER_STAGE,
-  MergeUnavailable,
-  OPENROUTER_ACCOUNT,
-  SubscriptionRefused,
-  foldTask,
-  foldTasks,
-  leadIntro,
-  type AgentAdapter,
-  type AgentEvent,
-  type AgentKind,
-  type AgentSession,
-  type SecretStore,
-  type TaskView,
-  type Workflow,
-} from '@mufu/core';
-import { workflowSchema, type RpcRequest, type RpcResponse } from '@mufu/schema';
+import type { AgentAdapter, AgentKind, GitHub, SecretStore } from '@mufu/core';
 
-import { GateBroker, type Decision, type GateResolution } from './broker.ts';
 import { doctor, type DoctorReport } from './doctor.ts';
-import { holdAwake } from './sleep.ts';
-import { assertOpenRouterAccount, createDefaultSecretStore } from './secrets.ts';
+import { createTaskEngine } from './engine.ts';
+import { createGhClient } from './gh.ts';
+import { createRpc } from './rpc.ts';
+import { DAEMON_WS_PORT } from './runtime.ts';
+import { createDefaultSecretStore } from './secrets.ts';
 import { SqliteEventLog } from './store.ts';
-import { createWorkspace } from './workspace.ts';
+import { listen } from './transport.ts';
+import { loadWorkflows } from './workflows.ts';
 
 export type DaemonOptions = {
   home: string;
   socketPath: string;
   wsPort?: number;
   workflowsDir: string;
-  agent?: 'fake' | 'codex' | 'claude';
-  /** 测试注入。缺的种类仍用真适配器或 fake 夹具。 */
+  agent?: AgentKind;
+  /** 测试和 `MUFU_AGENT=fake` 才打开。夹具路径本身不代表要走夹具。 */
+  useFixture?: boolean;
   adapters?: Partial<Record<AgentKind, AgentAdapter>>;
   fixturePath?: string;
   codexBin?: string;
   claudeBin?: string;
+  github?: GitHub;
   /** 测试注入。缺省时 macOS 用钥匙串，其它系统用进程内内存。 */
   secrets?: SecretStore;
 };
@@ -57,547 +39,57 @@ export type RunningDaemon = {
   report: () => DoctorReport | null;
 };
 
-type Created = {
-  title: string;
-  prompt: string;
-  workflowId?: string;
-  repoPath?: string;
-  agents?: Record<string, 'codex' | 'claude'>;
-};
-
 export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon> {
   const log = new SqliteEventLog(join(options.home, 'events.sqlite'));
   const subscribers = new Set<WebSocket>();
-  const write = (event: { taskId: string | null; type: string; payload: Record<string, unknown> }) => {
-    const row = log.append(event);
-    const frame = JSON.stringify({ method: 'event', params: row });
-    for (const client of subscribers) {
-      if (client.readyState === WebSocket.OPEN) client.send(frame);
-    }
-    return row;
-  };
-  const broker = new GateBroker();
-  const running = new Set<string>();
-  let doctorReport: DoctorReport | null = null;
-  let awake: { stop(): void } | null = null;
-  const github = new MergeUnavailable();
-
-  const workflows = loadWorkflows(options.workflowsDir);
-  const configuredAgent = options.agent ?? envAgent(process.env.MUFU_AGENT);
-  const fixtureMode = configuredAgent === 'fake';
-  const adapters = buildAdapters(options);
-  const live = new Map<string, AgentSession>();
-  const secrets = options.secrets ?? createDefaultSecretStore();
-
-  const views = () => foldTasks(log.readAll());
-  const one = (taskId: string) => foldTask(log.readAll(), taskId);
-
-  const setStatus = (taskId: string, status: TaskView['status']) => {
-    write({ taskId, type: 'task.status', payload: { status } });
-  };
-
-  function failTask(taskId: string, error: unknown, tool: string): void {
-    if (error instanceof SubscriptionRefused) {
-      write({
-        taskId,
-        type: 'environment.failed',
-        payload: { tool: error.tool, source: error.source, message: error.message },
-      });
-    } else {
-      const message = error instanceof Error ? error.message : String(error);
-      write({ taskId, type: 'environment.failed', payload: { message, tool, source: 'launch' } });
-    }
-    setStatus(taskId, 'needs_you');
-  }
-
-  async function consume(taskId: string, session: AgentSession): Promise<'ok' | 'stop'> {
-    live.set(taskId, session);
-    let outcome: 'ok' | 'stop' = 'stop';
-    for await (const event of session.events) {
-      await applyAgentEvent(taskId, event, {
-        decide: session.decide.bind(session),
-        followUp: session.followUp?.bind(session),
-      });
-      if (event.type === 'completed') {
-        outcome = event.ok ? 'ok' : 'stop';
-        break;
+  const events = {
+    append(event: { taskId: string | null; type: string; payload: Record<string, unknown> }) {
+      const row = log.append(event);
+      const frame = JSON.stringify({ method: 'event', params: row });
+      for (const client of subscribers) {
+        if (client.readyState === WebSocket.OPEN) client.send(frame);
       }
-      if (event.type === 'interrupted' || event.type === 'environment_failure') break;
-      const latest = one(taskId);
-      if (latest?.status === 'needs_you') break;
-    }
-    return outcome;
-  }
-
-  async function runTask(taskId: string): Promise<void> {
-    if (running.has(taskId)) return;
-    running.add(taskId);
-    if (!awake) awake = holdAwake();
-    const task = one(taskId);
-    if (!task) {
-      running.delete(taskId);
-      return;
-    }
-    write({ taskId, type: 'run.started', payload: { runId: randomUUID() } });
-    if (!task.messages.some((message) => message.role === 'lead')) {
-      write({
-        taskId,
-        type: 'agent.message',
-        payload: {
-          role: 'lead',
-          author: '协调 Agent',
-          text: leadIntro(
-            task.workflow.title,
-            task.workflow.stages.map((stage) => stage.title),
-          ),
-        },
-      });
-    }
-    try {
-      if (fixtureMode) await runFixture(taskId);
-      else await runStages(taskId);
-    } catch (error) {
-      failTask(taskId, error, 'launch');
-    } finally {
-      live.delete(taskId);
-      running.delete(taskId);
-      if (running.size === 0) {
-        awake?.stop();
-        awake = null;
-      }
-    }
-  }
-
-  async function runFixture(taskId: string): Promise<void> {
-    const task = one(taskId);
-    if (!task) return;
-    const session = await adapters.fake.startSession({
-      taskId,
-      workspacePath: task.workspacePath ?? options.home,
-      prompt: task.prompt,
-      resumeSessionId: task.sessions.fake ?? task.sessionId ?? undefined,
-    });
-    write({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind: 'fake' } });
-    const outcome = await consume(taskId, session);
-    const latest = one(taskId);
-    if (outcome === 'ok' && latest?.status === 'running') setStatus(taskId, 'done');
-  }
-
-  async function runStages(taskId: string): Promise<void> {
-    for (let guard = 0; guard < 8; guard += 1) {
-      const task = one(taskId);
-      if (!task || task.status === 'done' || task.status === 'needs_you') return;
-      const stage = task.workflow.stages.find((item) => item.id === task.stageId) ?? task.workflow.stages[0];
-      if (!stage) return;
-      const kind = kindFor(stage.agent, configuredAgent);
-      const adapter = adapters[kind];
-      let session: AgentSession;
-      try {
-        session = await adapter.startSession({
-          taskId,
-          workspacePath: task.workspacePath ?? options.home,
-          prompt: stagePrompt(task, stage),
-          resumeSessionId: task.sessions[kind],
-          stageId: stage.id,
-        });
-      } catch (error) {
-        failTask(taskId, error, kind);
-        return;
-      }
-      write({ taskId, type: 'agent.session', payload: { sessionId: session.sessionId, kind } });
-      let openedGate = false;
-      const wrapped: AgentSession = {
-        sessionId: session.sessionId,
-        events: session.events,
-        decide: session.decide.bind(session),
-        interrupt: session.interrupt.bind(session),
-        followUp: session.followUp?.bind(session),
-      };
-      live.set(taskId, wrapped);
-      let outcome: 'ok' | 'stop' | 'open' = 'open';
-      for await (const event of session.events) {
-        if (event.type === 'approval_request') openedGate = true;
-        await applyAgentEvent(taskId, event, {
-          decide: session.decide.bind(session),
-          followUp: session.followUp?.bind(session),
-        });
-        if (event.type === 'completed') {
-          outcome = event.ok ? 'ok' : 'stop';
-          break;
-        }
-        if (event.type === 'interrupted' || event.type === 'environment_failure') {
-          outcome = 'stop';
-          break;
-        }
-        const mid = one(taskId);
-        if (mid?.status === 'needs_you') {
-          outcome = 'stop';
-          break;
-        }
-      }
-      if (outcome === 'open') outcome = 'ok';
-      const latest = one(taskId);
-      if (!latest || latest.status === 'needs_you' || latest.status === 'done' || outcome !== 'ok') return;
-      const current = latest.workflow.stages.find((item) => item.id === latest.stageId) ?? stage;
-      if (current.gate && !openedGate) {
-        const resolution = await openProductGate(taskId, current.gate, `${current.title}`, wrapped.followUp);
-        if (resolution.cancelled) return;
-        if (resolution.decision === 'reject') return;
-      }
-      const after = one(taskId);
-      if (!after || after.status === 'needs_you' || after.status === 'done') return;
-      const index = after.workflow.stages.findIndex((item) => item.id === after.stageId);
-      const next = after.workflow.stages[index + 1];
-      if (!next) {
-        setStatus(taskId, 'done');
-        return;
-      }
-      write({ taskId, type: 'stage.entered', payload: { stageId: next.id } });
-    }
-  }
-
-  async function openProductGate(
-    taskId: string,
-    gate: 'final' | 'stage',
-    summary: string,
-    followUp?: (text: string) => string | void,
-  ): Promise<GateResolution> {
-    const gateId = randomUUID();
-    write({
-      taskId,
-      type: 'gate.opened',
-      payload: {
-        gateId,
-        requestId: gateId,
-        kind: gate,
-        operation: gate === 'final' ? 'final' : 'other',
-        summary: gate === 'final' ? `验收 ${summary}` : summary,
-        detail: '这一阶段做完了',
-      },
-    });
-    setStatus(taskId, gate === 'final' ? 'to_review' : 'needs_you');
-    broker.open(gateId);
-    const resolution = await broker.wait(gateId);
-    applyResolution(taskId, gateId, resolution, followUp);
-    return resolution;
-  }
-
-  function applyResolution(
-    taskId: string,
-    gateId: string,
-    resolution: GateResolution,
-    followUp?: (text: string) => string | void,
-  ): void {
-    if (resolution.cancelled) return;
-    write({
-      taskId,
-      type: 'gate.resolved',
-      payload: {
-        gateId,
-        decision: resolution.decision,
-        ...(resolution.comment ? { comment: resolution.comment } : {}),
-      },
-    });
-    if (resolution.decision === 'reject') {
-      const comment = resolution.comment ?? '';
-      write({
-        taskId,
-        type: 'agent.message',
-        payload: { role: 'user', author: '你', text: comment },
-      });
-      const reply = followUp?.(comment);
-      if (typeof reply === 'string' && reply.length > 0) {
-        write({
-          taskId,
-          type: 'agent.message',
-          payload: { role: 'agent', author: agentLabel(one(taskId)?.agentKind), text: reply },
-        });
-      }
-      setStatus(taskId, 'running');
-      return;
-    }
-    const latest = one(taskId);
-    if (latest && latest.status !== 'done' && latest.status !== 'needs_you') setStatus(taskId, 'running');
-  }
-
-  async function applyAgentEvent(
-    taskId: string,
-    event: AgentEvent,
-    session: {
-      decide: (requestId: string, decision: Decision) => Promise<void>;
-      followUp?: (text: string) => string | void;
     },
-  ): Promise<void> {
-    const current = one(taskId);
-    if (!current) return;
-    if (event.type === 'stage') {
-      write({ taskId, type: 'stage.entered', payload: { stageId: event.stageId } });
-    } else if (event.type === 'message') {
-      write({
-        taskId,
-        type: 'agent.message',
-        payload: { role: 'agent', author: event.author, text: event.text, pinReason: event.pinReason },
-      });
-    } else if (event.type === 'system') {
-      write({ taskId, type: 'agent.message', payload: { role: 'system', author: '系统', text: event.text } });
-    } else if (event.type === 'pin') {
-      const count = current.pins.filter((pin) => pin.stageId === current.stageId).length;
-      if (count < MAX_PINS_PER_STAGE) {
-        const messageId = [...current.messages]
-          .reverse()
-          .find((message) => message.role === 'agent' || message.role === 'lead')?.id;
-        write({
-          taskId,
-          type: 'pin.added',
-          payload: {
-            pinId: randomUUID(),
-            message: event.message,
-            reason: event.reason,
-            author: event.author,
-            stageId: current.stageId,
-            ...(messageId ? { messageId } : {}),
-          },
-        });
-      }
-    } else if (event.type === 'artifact') {
-      write({
-        taskId,
-        type: 'artifact.added',
-        payload: { artifactId: randomUUID(), title: event.title, detail: event.detail },
-      });
-    } else if (event.type === 'approval_request') {
-      const gateId = randomUUID();
-      const kind = event.gate === 'final' ? 'final' : 'stage';
-      write({
-        taskId,
-        type: 'gate.opened',
-        payload: {
-          gateId,
-          requestId: event.requestId,
-          kind,
-          operation: event.operation,
-          summary: event.summary,
-          detail: event.detail,
-        },
-      });
-      setStatus(taskId, kind === 'final' ? 'to_review' : 'needs_you');
-      broker.open(gateId);
-      const resolution = await broker.wait(gateId);
-      applyResolution(taskId, gateId, resolution, session.followUp);
-      if (!resolution.cancelled) await session.decide(event.requestId, resolution.decision);
-    } else if (event.type === 'environment_failure') {
-      write({
-        taskId,
-        type: 'environment.failed',
-        payload: { message: event.message, tool: event.tool, source: event.source },
-      });
-      setStatus(taskId, 'needs_you');
-    } else if (event.type === 'interrupted') {
-      write({ taskId, type: 'run.finished', payload: { outcome: 'interrupted' } });
-    } else if (event.type === 'completed') {
-      if (!event.ok) {
-        if (event.reason === 'rejected') {
-          write({ taskId, type: 'run.finished', payload: { outcome: 'rejected' } });
-          return;
-        }
-        const attempts = current.attempts + 1;
-        write({
-          taskId,
-          type: 'attempt.counted',
-          payload: { attempt: attempts, reason: event.reason ?? 'failed' },
-        });
-        write({ taskId, type: 'run.finished', payload: { outcome: 'failed' } });
-        if (attempts >= MAX_ATTEMPTS) {
-          write({
-            taskId,
-            type: 'environment.failed',
-            payload: { message: `已经失败 ${attempts} 次`, source: 'attempts' },
-          });
-          setStatus(taskId, 'needs_you');
-        } else {
-          setStatus(taskId, 'needs_you');
-        }
-      } else {
-        write({ taskId, type: 'run.finished', payload: { outcome: 'completed' } });
-      }
-    }
-  }
-
-  async function createTask(input: Created): Promise<TaskView> {
-    const template = workflows.get(input.workflowId ?? 'fix-bug');
-    if (!template) throw new Error(`没有这个流程：${input.workflowId ?? 'fix-bug'}`);
-    const workflow = {
-      ...template,
-      stages: template.stages.map((stage) => {
-        const override = input.agents?.[stage.id];
-        if (override !== 'codex' && override !== 'claude') return stage;
-        return { ...stage, agent: override };
-      }),
-    };
-    const taskId = randomUUID();
-    const seq = views().length + 1;
-    write({
-      taskId,
-      type: 'task.created',
-      payload: { seq, title: input.title, prompt: input.prompt, workflow, repoPath: input.repoPath ?? null },
-    });
-    const path = await createWorkspace(input.repoPath, taskId, options.home);
-    write({ taskId, type: 'workspace.created', payload: { path } });
-    setStatus(taskId, 'running');
-    void runTask(taskId);
-    const created = one(taskId);
-    if (!created) throw new Error('任务没有写进日志');
-    return created;
-  }
-
-  function resolveGate(gateId: string, decision: Decision, comment?: string): TaskView {
-    const task = views().find((item) => item.pendingGate?.id === gateId);
-    if (!task?.pendingGate) throw new Error('没有待处理的门禁');
-    if (decision === 'reject' && (!comment || comment.trim().length === 0)) throw new Error('打回要写一句原因');
-    broker.resolve(gateId, decision, comment?.trim());
-    return task;
-  }
-
-  async function handle(request: RpcRequest): Promise<unknown> {
-    const params = (request.params ?? {}) as Record<string, unknown>;
-    switch (request.method) {
-      case 'health':
-        return { ok: true };
-      case 'doctor':
-        doctorReport ??= await doctor();
-        return doctorReport;
-      case 'secret.status':
-        return { openrouter: await secrets.has(OPENROUTER_ACCOUNT) };
-      case 'secret.set': {
-        const account = assertOpenRouterAccount(String(params.account ?? ''));
-        const value = String(params.value ?? '');
-        if (value.trim().length === 0) throw new Error('密钥是空的');
-        await secrets.set(account, value);
-        return { account, set: true };
-      }
-      case 'secret.remove': {
-        const account = assertOpenRouterAccount(String(params.account ?? ''));
-        await secrets.remove(account);
-        return { account, set: false };
-      }
-      case 'task.create':
-        return createTask({
-          title: String(params.title ?? ''),
-          prompt: String(params.prompt ?? ''),
-          workflowId: typeof params.workflowId === 'string' ? params.workflowId : undefined,
-          repoPath: typeof params.repoPath === 'string' ? params.repoPath : undefined,
-          agents: agentOverrides(params.agents),
-        });
-      case 'workflow.list':
-        return [...workflows.values()];
-      case 'task.list':
-        return views().filter((task) => task.status !== 'done');
-      case 'task.get':
-        return one(String(params.taskId));
-      case 'task.events':
-        return log.readAll().filter((event) => event.taskId === params.taskId);
-      case 'task.note': {
-        const taskId = String(params.taskId);
-        const text = String(params.text ?? '').trim();
-        if (!text) throw new Error('写点什么');
-        if (!one(taskId)) throw new Error('没有这个任务');
-        write({
-          taskId,
-          type: 'agent.message',
-          payload: { role: 'user', author: '你', text },
-        });
-        const session = live.get(taskId);
-        const reply = session?.followUp?.(text);
-        if (typeof reply === 'string' && reply.length > 0) {
-          const kind = one(taskId)?.agentKind;
-          write({
-            taskId,
-            type: 'agent.message',
-            payload: { role: 'agent', author: agentLabel(kind), text: reply },
-          });
-        }
-        return one(taskId);
-      }
-      case 'gate.resolve':
-        return resolveGate(
-          String(params.gateId),
-          params.decision === 'reject' ? 'reject' : 'approve',
-          typeof params.comment === 'string' ? params.comment : undefined,
-        );
-      case 'pin.readAll': {
-        const taskId = String(params.taskId);
-        write({ taskId, type: 'pin.read', payload: {} });
-        return one(taskId);
-      }
-      case 'task.merge':
-        await github.mergePullRequest({ repoPath: String(params.repoPath ?? ''), pr: Number(params.pr ?? 0) });
-        return { ok: false };
-      default:
-        throw new Error(`未知方法 ${request.method}`);
-    }
-  }
-
-  const requested = options.wsPort ?? DAEMON_WS_PORT;
-  if (!Number.isInteger(requested) || requested < 0 || requested > 65535 || requested === DEV_PORT) {
+    readAll: () => log.readAll(),
+    close: () => log.close(),
+  };
+  const workflows = loadWorkflows(options.workflowsDir);
+  const fixturePath = options.fixturePath ?? process.env.MUFU_FIXTURE;
+  if (options.useFixture && !fixturePath) {
     log.close();
-    throw new Error(
-      `守护进程不能听 ${requested}。看板端口 ${DEV_PORT} 只给 pnpm dev:app（http://127.0.0.1:${DEV_PORT}），WebSocket 用 ${DAEMON_WS_PORT}。`,
-    );
+    throw new Error('夹具模式需要 MUFU_FIXTURE');
   }
-
-  const socket = createNetServer((connection) => attachNdjson(connection, handle));
-  await new Promise<void>((resolve, reject) => {
-    socket.once('error', reject);
-    socket.listen(options.socketPath, () => resolve());
+  const engine = createTaskEngine({
+    home: options.home,
+    log: events,
+    workflows,
+    adapters: buildAdapters(options),
+    fixture: options.useFixture ? createFakeAdapter(fixturePath ?? '') : null,
+    github: options.github ?? createGhClient(),
+    agent: options.agent,
   });
-
-  const hint = `mufu 守护进程不提供看板。\n在另一个终端运行 pnpm dev:app，然后打开 http://127.0.0.1:${DEV_PORT}\n`;
-  const http: HttpServer = createHttpServer((_req, res) => {
-    res.writeHead(200, {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Length': Buffer.byteLength(hint),
-      'Cache-Control': 'no-store',
-    });
-    res.end(hint);
+  const secrets = options.secrets ?? createDefaultSecretStore();
+  let doctorReport: DoctorReport | null = null;
+  const handle = createRpc({
+    engine,
+    secrets,
+    loadDoctor: async () => {
+      doctorReport ??= await doctor();
+      return doctorReport;
+    },
   });
-  const wss = new WebSocketServer({ server: http });
-  wss.on('connection', (socketConnection) => attachWebSocket(socketConnection, handle, subscribers));
-  const wsPort = await new Promise<number>((resolve, reject) => {
-    const fail = (error: Error) => {
-      http.close(() => {
-        socket.close(() => {
-          log.close();
-          rmSync(options.socketPath, { force: true });
-          reject(error);
-        });
-      });
-    };
-    http.once('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'EADDRINUSE') {
-        fail(
-          new Error(
-            `127.0.0.1:${requested} 已被占用。守护进程的 WebSocket 是 ${DAEMON_WS_PORT}，看板端口 ${DEV_PORT} 留给 pnpm dev:app。`,
-          ),
-        );
-        return;
-      }
-      fail(error);
+  let transport: Awaited<ReturnType<typeof listen>>;
+  try {
+    transport = await listen({
+      socketPath: options.socketPath,
+      wsPort: options.wsPort ?? DAEMON_WS_PORT,
+      handle,
+      subscribers,
     });
-    http.listen({ port: requested, host: '127.0.0.1', exclusive: true }, () => {
-      const address = http.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      if (port === DEV_PORT || (requested !== 0 && port !== requested)) {
-        fail(
-          new Error(
-            `守护进程绑在了 127.0.0.1:${port}。它不能占看板端口 ${DEV_PORT}，WebSocket 应是 ${requested === 0 ? DAEMON_WS_PORT : requested}。`,
-          ),
-        );
-        return;
-      }
-      resolve(port);
-    });
-  });
-
+  } catch (error) {
+    log.close();
+    throw error;
+  }
   void doctor()
     .then((report) => {
       doctorReport = report;
@@ -606,130 +98,19 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
 
   return {
     socketPath: options.socketPath,
-    wsPort,
+    wsPort: transport.wsPort,
     report: () => doctorReport,
     async close() {
-      broker.cancelAll();
-      for (const session of live.values()) void session.interrupt().catch(() => undefined);
-      await new Promise<void>((resolve) => socket.close(() => resolve()));
-      await new Promise<void>((resolve) => wss.close(() => resolve()));
-      await new Promise<void>((resolve) => http.close(() => resolve()));
+      engine.shutdown();
+      await transport.close();
       log.close();
-      rmSync(options.socketPath, { force: true });
     },
   };
 }
 
-function envAgent(value: string | undefined): DaemonOptions['agent'] {
-  if (value === 'fake' || value === 'codex' || value === 'claude') return value;
-  return undefined;
-}
-
-function kindFor(stageAgent: AgentKind | undefined, fallback: DaemonOptions['agent']): AgentKind {
-  if (stageAgent === 'codex' || stageAgent === 'claude' || stageAgent === 'fake') return stageAgent;
-  if (fallback === 'codex' || fallback === 'claude') return fallback;
-  return 'codex';
-}
-
-function agentLabel(kind: string | null | undefined): string {
-  if (kind === 'claude') return 'Claude';
-  if (kind === 'codex') return 'Codex';
-  return '代理';
-}
-
-function stagePrompt(task: TaskView, stage: Workflow['stages'][number]): string {
-  const notes = task.pins.map((pin) => pin.message).join('\n');
-  return [
-    task.prompt,
-    `当前阶段：${stage.title}（${stage.id}）。做完这一阶段就停，不要合并。`,
-    notes.length > 0 ? `已有重点：\n${notes}` : '',
-  ]
-    .filter((line) => line.length > 0)
-    .join('\n\n');
-}
-
-function agentOverrides(value: unknown): Record<string, 'codex' | 'claude'> | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const map: Record<string, 'codex' | 'claude'> = {};
-  for (const [stageId, kind] of Object.entries(value)) {
-    if (kind === 'codex' || kind === 'claude') map[stageId] = kind;
-  }
-  return Object.keys(map).length > 0 ? map : undefined;
-}
-
 function buildAdapters(options: DaemonOptions): Record<AgentKind, AgentAdapter> {
-  const fixture = options.fixturePath ?? process.env.MUFU_FIXTURE;
-  const fake =
-    options.adapters?.fake ??
-    (fixture
-      ? createFakeAdapter(fixture)
-      : {
-          kind: 'fake' as const,
-          startSession: () => Promise.reject(new Error('fake 代理需要夹具路径 MUFU_FIXTURE')),
-        });
   return {
-    fake,
     codex: options.adapters?.codex ?? createCodexAdapter({ bin: options.codexBin }),
     claude: options.adapters?.claude ?? createClaudeAdapter({ bin: options.claudeBin }),
   };
-}
-
-function loadWorkflows(dir: string): Map<string, Workflow> {
-  const map = new Map<string, Workflow>();
-  for (const name of ['fix-bug.yaml', 'new-feature.yaml']) {
-    const file = workflowSchema.parse(parseYaml(readFileSync(join(dir, name), 'utf8')));
-    map.set(file.id, {
-      id: file.id,
-      title: file.title,
-      doneWhen: file.done_when,
-      stages: file.stages.map((stage) => ({
-        id: stage.id,
-        title: stage.title,
-        gate: stage.gate,
-        agent: stage.agent,
-      })),
-    });
-  }
-  return map;
-}
-
-function attachNdjson(connection: Socket, handle: (request: RpcRequest) => Promise<unknown>): void {
-  let buffer = '';
-  connection.setEncoding('utf8');
-  connection.on('data', (chunk: string) => {
-    buffer += chunk;
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      void answer(line, handle).then((response) => connection.write(`${JSON.stringify(response)}\n`));
-    }
-  });
-}
-
-function attachWebSocket(
-  connection: WebSocket,
-  handle: (request: RpcRequest) => Promise<unknown>,
-  subscribers: Set<WebSocket>,
-): void {
-  subscribers.add(connection);
-  connection.on('close', () => subscribers.delete(connection));
-  connection.on('message', (data) => {
-    void answer(String(data), handle).then((response) => connection.send(JSON.stringify(response)));
-  });
-}
-
-async function answer(line: string, handle: (request: RpcRequest) => Promise<unknown>): Promise<RpcResponse> {
-  let request: RpcRequest;
-  try {
-    request = JSON.parse(line) as RpcRequest;
-  } catch {
-    return { id: 0, error: { message: '无法解析请求' } };
-  }
-  try {
-    const result = await handle(request);
-    return { id: request.id, result };
-  } catch (error) {
-    return { id: request.id, error: { message: error instanceof Error ? error.message : String(error) } };
-  }
 }

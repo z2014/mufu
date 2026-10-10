@@ -1,4 +1,4 @@
-import { DEFAULT_WS_PORT } from '@mufu/core/view';
+import { DAEMON_WS_PORT } from '@/runtime';
 
 /**
  * 唯一的守护进程客户端。本地 WebSocket 的请求就是一行 JSON，
@@ -16,7 +16,7 @@ type Pending = {
   reject: (error: Error) => void;
 };
 
-const port = import.meta.env.VITE_MUFU_WS_PORT ?? String(DEFAULT_WS_PORT);
+const port = import.meta.env.VITE_MUFU_WS_PORT ?? String(DAEMON_WS_PORT);
 const url = `ws://127.0.0.1:${port}`;
 
 let socket: WebSocket | null = null;

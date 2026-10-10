@@ -58,6 +58,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       attempts: 0,
       runs: 0,
       workspacePath: null,
+      ci: null,
       updatedAt: event.at,
     });
     return;
@@ -94,8 +95,10 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       const kind = str(payload, 'kind');
       const sessionId = str(payload, 'sessionId');
       task.sessionId = sessionId;
-      task.agentKind = kind;
-      if (kind === 'codex' || kind === 'claude' || kind === 'fake') task.sessions[kind] = sessionId;
+      if (kind === 'codex' || kind === 'claude') {
+        task.agentKind = kind;
+        task.sessions[kind] = sessionId;
+      }
       break;
     }
     case 'agent.message':
@@ -148,6 +151,22 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
         message: str(payload, 'message'),
         tool: typeof payload.tool === 'string' ? payload.tool : undefined,
         source: typeof payload.source === 'string' ? payload.source : undefined,
+      };
+      break;
+    case 'ci.reported': {
+      const pr = Number(payload.pr);
+      const { state } = payload;
+      if (!Number.isInteger(pr)) break;
+      task.ci = {
+        pr,
+        state: state === 'passed' || state === 'failed' || state === 'pending' ? state : 'pending',
+      };
+      break;
+    }
+    case 'merge_failed':
+      task.attention = {
+        message: typeof payload.message === 'string' && payload.message.length > 0 ? payload.message : '合并失败',
+        source: typeof payload.reason === 'string' ? payload.reason : undefined,
       };
       break;
     default:

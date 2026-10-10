@@ -7,13 +7,13 @@
 1. `packages/cli` 通过本机 Unix socket 调用守护进程。
 2. `packages/daemon` 是唯一写入者（SQLite 追加日志），折叠出任务状态。
 3. `packages/core` 拥有任务/阶段/门禁状态和 `AgentAdapter`。
-4. `packages/adapters` 里的 fake 代理按 JSONL 回放。守护进程同时拿着 Codex 和 Claude。流程模板给每个阶段指定代理，创建任务时可以盖掉。两边的订阅检查各自做：没登录的那一边只挡住用到它的任务。`MUFU_AGENT=fake` 时整条任务改走替身。Codex 与 Claude 适配器实现同一接口，订阅检查和恢复藏在接口里面。
+4. `packages/adapters` 里 Codex 与 Claude 实现同一个 `AgentAdapter`。订阅检查和恢复藏在接口里面。`MUFU_AGENT=fake` 时守护进程另注入夹具回放，那不是第三种代理。流程模板给每个阶段指定代理，创建任务时可以盖掉。没登录的那一边只挡住用到它的任务。
 5. `packages/app` 用同一个守护进程客户端读任务、批准门禁。
 
 替身：
 
-- 这台云主机没有登录的 `codex` / `claude`。端到端测试使用 fake 代理和 `fixtures/handwritten/fix-bug.fake.jsonl`。
-- GitHub 合并是桩。代理拿不到合并能力。最终门禁的 `done_when` 是 `final_gate_approved`，不调用 `gh`。
+- 这台云主机没有登录的 `codex` / `claude`。端到端测试在 `MUFU_AGENT=fake` 下回放 `fixtures/handwritten/fix-bug.fake.jsonl`。
+- 任务完成等于 PR 合并成功。测试注入 gh。代理拿不到合并能力。两份模板的 `done_when` 都是 `pr_merged`。
 - 协调 Agent 是固定文案。
 - 手写的 Codex / Claude JSONL 来自官方文档和下面的开源实现，不是录音。
 

@@ -11,7 +11,7 @@ import { Textarea } from '@/common/components/ui/textarea';
 const formSchema = z.object({
   title: z.string().trim().min(1, '写一个标题'),
   prompt: z.string().trim().min(1, '写清楚要做什么'),
-  workflowId: z.enum(['fix-bug', 'new-feature']),
+  workflowId: z.string().min(1, '选一个流程'),
   repoPath: z.string(),
 });
 
@@ -22,7 +22,8 @@ export type StageAgentChoice = 'codex' | 'claude';
 type WorkflowChoice = {
   id: string;
   title: string;
-  stages: { id: string; title: string; agent?: 'codex' | 'claude' | 'fake' }[];
+  default?: boolean;
+  stages: { id: string; title: string; agent?: StageAgentChoice }[];
 };
 
 export type NewTaskInput = FormValues & {
@@ -39,28 +40,9 @@ type Props = {
   onSubmit: (value: NewTaskInput) => void;
 };
 
-const fallbackWorkflows: WorkflowChoice[] = [
-  {
-    id: 'fix-bug',
-    title: '修 bug',
-    stages: [
-      { id: 'reproduce', title: '复现', agent: 'claude' },
-      { id: 'fix', title: '修复', agent: 'codex' },
-      { id: 'pr', title: 'PR 与 CI', agent: 'codex' },
-      { id: 'accept', title: '验收', agent: 'claude' },
-    ],
-  },
-  {
-    id: 'new-feature',
-    title: '新功能',
-    stages: [
-      { id: 'spec', title: '方案', agent: 'claude' },
-      { id: 'implement', title: '实现', agent: 'codex' },
-      { id: 'pr', title: 'PR 与 CI', agent: 'codex' },
-      { id: 'accept', title: '验收', agent: 'claude' },
-    ],
-  },
-];
+function preferredId(workflows: WorkflowChoice[]): string {
+  return workflows.find((item) => item.default)?.id ?? workflows[0]?.id ?? '';
+}
 
 function defaultsFor(workflow: WorkflowChoice | undefined): Record<string, StageAgentChoice> {
   const agents: Record<string, StageAgentChoice> = {};
@@ -71,25 +53,25 @@ function defaultsFor(workflow: WorkflowChoice | undefined): Record<string, Stage
 }
 
 export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pending, errorMessage, onSubmit }: Props) {
-  const choices = workflows.length > 0 ? workflows : fallbackWorkflows;
+  const defaultId = preferredId(workflows);
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { title: '', prompt: '', workflowId: 'fix-bug', repoPath: defaultRepo },
+    defaultValues: { title: '', prompt: '', workflowId: defaultId, repoPath: defaultRepo },
   });
   const workflowId = form.watch('workflowId');
-  const selected = choices.find((item) => item.id === workflowId) ?? choices[0];
+  const selected = workflows.find((item) => item.id === workflowId) ?? workflows.find((item) => item.id === defaultId);
   const stageKey = (selected?.stages ?? []).map((stage) => `${stage.id}:${stage.agent ?? ''}`).join('|');
   const [agents, setAgents] = useState<Record<string, StageAgentChoice>>(() => defaultsFor(selected));
 
   useEffect(() => {
     if (!open) return;
-    form.reset({ title: '', prompt: '', workflowId: 'fix-bug', repoPath: defaultRepo });
-  }, [open, defaultRepo, form]);
+    form.reset({ title: '', prompt: '', workflowId: defaultId, repoPath: defaultRepo });
+  }, [open, defaultRepo, form, defaultId]);
 
   useEffect(() => {
-    const workflow = choices.find((item) => item.id === workflowId) ?? choices[0];
+    const workflow = workflows.find((item) => item.id === workflowId) ?? workflows[0];
     setAgents(defaultsFor(workflow));
-  }, [stageKey, workflowId, choices]);
+  }, [stageKey, workflowId, workflows]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -97,7 +79,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
         <DialogHeader>
           <DialogTitle>新任务</DialogTitle>
           <DialogDescription>
-            选工作目录和流程。修 bug 默认 Claude 复现和验收，Codex 修复。合并不会自动发生。
+            流程和每个阶段的代理从守护进程读来，可以改。最终验收通过后会合并对应的 PR。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -119,7 +101,8 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
           <label className="flex flex-col gap-1 text-sm">
             流程
             <select className="border-input bg-background h-9 rounded-md border px-3" {...form.register('workflowId')}>
-              {choices.map((item) => (
+              {workflows.length === 0 ? <option value="">没有可用的流程</option> : null}
+              {workflows.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.title}
                 </option>
@@ -170,7 +153,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || !selected}>
               {pending ? '正在创建' : '创建任务'}
             </Button>
           </div>

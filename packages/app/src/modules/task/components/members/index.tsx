@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 function agentName(agent: string | undefined): string {
   if (agent === 'claude') return 'Claude';
   if (agent === 'codex') return 'Codex';
-  if (agent === 'fake') return '替身';
   return '未定';
 }
 

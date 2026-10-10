@@ -20,6 +20,12 @@ function summary(task: TaskView): string {
   return last?.text ?? task.prompt;
 }
 
+function ciLabel(state: 'pending' | 'passed' | 'failed'): string {
+  if (state === 'passed') return '通过';
+  if (state === 'failed') return '失败';
+  return '还在跑';
+}
+
 function statusText(task: TaskView): string {
   if (task.attention) return '出问题了';
   if (task.status === 'to_review') return '可以合并';
@@ -78,6 +84,9 @@ export function TaskCard({
         </Link>
       </h3>
       <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
+      {task.status === 'to_review' && task.ci ? (
+        <p className="text-muted-foreground mt-1 text-[11.5px]">{ciLabel(task.ci.state)}</p>
+      ) : null}
       <div className="text-muted-foreground mt-2.5 flex flex-wrap items-center gap-2 text-[11.5px]">
         <span
           className={cn(

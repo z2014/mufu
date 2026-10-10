@@ -112,7 +112,11 @@ export function Component() {
             <>
               <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
                 <h1 className="font-semibold">{current.title}</h1>
-                <span className="text-muted-foreground text-xs">{current.workflow.title}</span>
+                <span className="text-muted-foreground text-xs">
+                  {current.workflow.title}
+                  {agentTitle(current.agentKind)}
+                  {current.status === 'to_review' && current.ci ? ` · ${ciText(current.ci.state)}` : ''}
+                </span>
                 {current.attention ? (
                   <span
                     className="bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[11px] font-bold"
@@ -224,6 +228,18 @@ export function Component() {
       />
     </AppShell>
   );
+}
+
+function agentTitle(kind: string | null): string {
+  if (kind === 'claude') return ' · Claude';
+  if (kind === 'codex') return ' · Codex';
+  return '';
+}
+
+function ciText(state: 'pending' | 'passed' | 'failed'): string {
+  if (state === 'passed') return 'CI 通过';
+  if (state === 'failed') return 'CI 失败';
+  return 'CI 还在跑';
 }
 
 function Message({ message, pins }: { message: TaskView['messages'][number]; pins: TaskView['pins'] }) {

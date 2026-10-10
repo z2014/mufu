@@ -1,6 +1,6 @@
 id: new-feature
 title: 新功能
-done_when: final_gate_approved
+done_when: pr_merged
 stages:
   - id: spec
     title: 方案

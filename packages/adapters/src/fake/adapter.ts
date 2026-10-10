@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import type { AgentAdapter, AgentEvent, AgentSession, GateDecision, OperationKind, StartSession } from '@mufu/core';
+import type { AgentEvent, AgentSession, GateDecision, OperationKind, StartSession } from '@mufu/core';
 
 import { fixtureMarker, isFixtureMarker } from '../jsonl.ts';
 
@@ -25,17 +25,21 @@ type FakeLine = {
   source?: string;
 };
 
+/** 夹具回放。不是 Codex 或 Claude，也不出现在领域类型里。 */
+export type FixtureRunner = {
+  startSession(input: StartSession): Promise<AgentSession>;
+};
+
 /**
  * 按 JSONL 回放。文件必须标明 handwritten 或 recorded，并且 protocol 是 mufu-fake。
- * 这不是 Codex/Claude 的原始流。
+ * 这不是 Codex/Claude 的原始流。只在测试和 MUFU_AGENT=fake 时由守护进程注入。
  */
-export function createFakeAdapter(fixturePath: string): AgentAdapter {
+export function createFakeAdapter(fixturePath: string): FixtureRunner {
   return {
-    kind: 'fake',
     async startSession(input: StartSession): Promise<AgentSession> {
       const marker = fixtureMarker(fixturePath);
       if (marker?.protocol !== 'mufu-fake') {
-        throw new Error(`fake 代理只回放标明来源的 mufu-fake 夹具：${fixturePath}`);
+        throw new Error(`夹具文件不能回放：${fixturePath}`);
       }
       const lines = readFileSync(fixturePath, 'utf8')
         .split('\n')
@@ -45,14 +49,14 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
         .filter((line) => !isFixtureMarker(line));
 
       const sessionId =
-        input.resumeSessionId ?? lines.find((line) => line.sessionId)?.sessionId ?? `fake-${input.taskId}`;
+        input.resumeSessionId ?? lines.find((line) => line.sessionId)?.sessionId ?? `replay-${input.taskId}`;
       const decisions = new Map<string, (decision: GateDecision) => void>();
       let interrupted = false;
       const script = input.stageId ? linesForStage(lines, input.stageId) : lines;
 
       async function* events(): AsyncGenerator<AgentEvent> {
         if (input.resumeSessionId) {
-          yield { type: 'message', author: 'fake', text: `已按会话 ${input.resumeSessionId} 恢复` };
+          yield { type: 'message', author: '记录', text: `已按会话 ${input.resumeSessionId} 恢复` };
         }
         for (const line of script) {
           if (interrupted) {
@@ -109,7 +113,7 @@ function linesForStage(lines: FakeLine[], stageId: string): FakeLine[] {
   const start = lines.findIndex((line) => line.type === 'stage' && line.stageId === stageId);
   if (start < 0) {
     return [
-      { type: 'message', author: 'fake', text: `夹具里没有阶段 ${stageId}` },
+      { type: 'message', author: '记录', text: `夹具里没有阶段 ${stageId}` },
       { type: 'completed', ok: true },
     ];
   }

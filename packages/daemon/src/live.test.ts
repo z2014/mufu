@@ -4,9 +4,8 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { describe, expect, it } from 'vitest';
 
-import { socketPath } from '@mufu/core';
-
 import { startDaemon } from './daemon.ts';
+import { socketPath } from './runtime.ts';
 
 const repoRoot = new URL('../../../', import.meta.url).pathname;
 
@@ -19,7 +18,7 @@ describe('live events', () => {
       wsPort: 0,
       workflowsDir: join(repoRoot, 'packages/daemon/workflows'),
       fixturePath: join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl'),
-      agent: 'fake',
+      useFixture: true,
     });
     const frames: Array<{ method?: string; params?: { type?: string } }> = [];
     const ws = new WebSocket(`ws://127.0.0.1:${daemon.wsPort}`);

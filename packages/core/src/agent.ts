@@ -1,4 +1,8 @@
-export type AgentKind = 'codex' | 'claude' | 'fake';
+import type { GateDecision } from '@mufu/schema';
+
+export type { GateDecision };
+
+export type AgentKind = 'codex' | 'claude';
 
 export type OperationKind = 'shell' | 'file_edit' | 'network' | 'mcp' | 'final' | 'other';
 
@@ -34,8 +38,6 @@ export type StartSession = {
   /** 团队模式一次只跑一个阶段。不传则由夹具自己走完整个流程。 */
   stageId?: string;
 };
-
-export type GateDecision = 'approve' | 'reject';
 
 /**
  * 调用方只调用 startSession。订阅检查、环境变量清理、二进制路径和按 id 恢复都在实现里面。

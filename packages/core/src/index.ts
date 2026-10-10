@@ -1,16 +1,5 @@
 export { EVENT_SCHEMA_VERSION } from '@mufu/schema';
-export {
-  PRODUCT_NAME,
-  PRODUCT_VERSION,
-  CONFIG_DIR_NAME,
-  LAUNCH_AGENT_LABEL,
-  KEYCHAIN_SERVICE,
-  DEV_PORT,
-  DAEMON_WS_PORT,
-  DEFAULT_WS_PORT,
-  resolveDaemonPort,
-} from './product.ts';
-export { dataDir, socketPath } from './paths.ts';
+export { PRODUCT_NAME, PRODUCT_VERSION, CONFIG_DIR_NAME, LAUNCH_AGENT_LABEL, KEYCHAIN_SERVICE } from './product.ts';
 export {
   MAX_ATTEMPTS,
   MAX_PINS_PER_STAGE,
@@ -22,6 +11,7 @@ export {
 export type {
   ArtifactView,
   Attention,
+  CiState,
   Column,
   DomainEvent,
   FailureKind,
@@ -45,9 +35,7 @@ export type {
   OperationKind,
   StartSession,
 } from './agent.ts';
-export { MergeUnavailable } from './github.ts';
-export type { GitHub } from './github.ts';
-export { classifyCodexQuotaWindow } from './quota.ts';
-export { launchAgentPlist } from './launchd.ts';
+export { MergeFailure } from './github.ts';
+export type { GitHub, MergeFailureReason } from './github.ts';
 export { OPENROUTER_ACCOUNT } from './secret.ts';
 export type { SecretStore } from './secret.ts';

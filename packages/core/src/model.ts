@@ -1,8 +1,13 @@
-export type TaskStatus = 'running' | 'needs_you' | 'to_review' | 'done';
+import type { TaskStatus } from '@mufu/schema';
+
+import type { CiState } from './github.ts';
+
+export type { TaskStatus };
+export type { CiState };
 
 export type Column = 'needs_you' | 'running' | 'to_review';
 
-export type StageAgent = 'codex' | 'claude' | 'fake';
+export type StageAgent = 'codex' | 'claude';
 
 export type WorkflowStage = {
   id: string;
@@ -79,6 +84,8 @@ export type TaskView = {
   attempts: number;
   runs: number;
   workspacePath: string | null;
+  /** 待验收卡片上的 CI。只来自守护进程写下的事件。 */
+  ci: { pr: number; state: CiState } | null;
   updatedAt: string;
 };
 
@@ -95,16 +102,19 @@ export type DomainEvent = {
 export const MAX_ATTEMPTS = 3;
 export const MAX_PINS_PER_STAGE = 5;
 
-export type FailureKind = 'rate_limit' | 'auth' | 'network' | 'task';
+export type FailureKind = 'rate_limit' | 'auth' | 'network' | 'task' | 'conflict' | 'ci_failed' | 'environment';
 
 export type FailureReason = {
   kind: FailureKind;
   detail: string;
 };
 
-/** 限流、登录过期、断网是环境失败，不算尝试。 */
+/**
+ * 限流、登录过期、断网，以及 gh 没登录或网络导致的合并失败，都不算尝试。
+ * 任务本身失败、合并冲突、CI 失败算尝试。
+ */
 export function countsAsAttempt(reason: FailureReason): boolean {
-  return reason.kind === 'task';
+  return reason.kind === 'task' || reason.kind === 'conflict' || reason.kind === 'ci_failed';
 }
 
 export function columnOf(task: TaskView): Column | null {
