@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import { socketPath, type TaskView } from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
-import { spawn } from 'node:child_process';
 
 const exec = promisify(execFile);
 const repoRoot = new URL('../../../', import.meta.url).pathname;
@@ -104,11 +103,14 @@ describe('fix bug tracer', () => {
       agent: 'fake',
     });
     try {
-      const created = await cliRun(['task', 'create', '--title', 'js error 修复', '--prompt', '空列表崩了', '--repo', repo], home);
+      const created = await cliRun(
+        ['task', 'create', '--title', 'js error 修复', '--prompt', '空列表崩了', '--repo', repo],
+        home,
+      );
       expect(created.code, created.stderr).toBe(0);
       const taskId = (await listIds(home))[0];
       expect(taskId).toBeTruthy();
-      const waiting = await waitFor(home, taskId!, (task) => task.pendingGate != null);
+      const waiting = await waitFor(home, taskId!, (task) => task.pendingGate !== null);
       expect(waiting.status).toBe('to_review');
       expect(waiting.pendingGate?.summary).toContain('验收');
       const approved = await cliRun(['gate', 'approve', waiting.pendingGate!.id], home);
@@ -131,15 +133,22 @@ describe('fix bug tracer', () => {
 
   it('打回之后任务回到等你，不算完成', async () => {
     const home = mkdtempSync(join(tmpdir(), 'mufu-home-'));
-    const daemon = await startDaemon({ home, socketPath: socketPath(home), wsPort: 0, workflowsDir, fixturePath, agent: 'fake' });
+    const daemon = await startDaemon({
+      home,
+      socketPath: socketPath(home),
+      wsPort: 0,
+      workflowsDir,
+      fixturePath,
+      agent: 'fake',
+    });
     try {
       const created = await cliRun(['task', 'create', '--title', '再看一眼', '--prompt', '先别过'], home);
       expect(created.code, created.stderr).toBe(0);
       const taskId = (await listIds(home))[0]!;
-      const waiting = await waitFor(home, taskId, (task) => task.pendingGate != null);
+      const waiting = await waitFor(home, taskId, (task) => task.pendingGate !== null);
       const rejected = await cliRun(['gate', 'reject', waiting.pendingGate!.id], home);
       expect(rejected.code, rejected.stderr).toBe(0);
-      const after = await waitFor(home, taskId, (task) => task.pendingGate == null && task.status === 'needs_you');
+      const after = await waitFor(home, taskId, (task) => task.pendingGate === null && task.status === 'needs_you');
       expect(after.status).toBe('needs_you');
     } finally {
       await daemon.close();

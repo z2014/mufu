@@ -109,7 +109,7 @@ export async function listTasks(): Promise<TaskView[]> {
 
 export async function getTask(taskId: string): Promise<TaskView | null> {
   const result = await rpc('task.get', { taskId });
-  if (result == null) return null;
+  if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
 }
 
@@ -128,13 +128,13 @@ export async function resolveGate(gateId: string, decision: 'approve' | 'reject'
 
 export async function readPins(taskId: string): Promise<TaskView | null> {
   const result = await rpc('pin.readAll', { taskId });
-  if (result == null) return null;
+  if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
 }
 
 export async function addNote(taskId: string, text: string): Promise<TaskView | null> {
   const result = await rpc('task.note', { taskId, text });
-  if (result == null) return null;
+  if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
 }
 

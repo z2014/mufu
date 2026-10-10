@@ -5,7 +5,16 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist', 'dist-electron', 'dist-types', 'node_modules', 'uploads', 'fixtures', 'docs'],
+    ignores: [
+      '**/dist/**',
+      '**/dist-electron/**',
+      '**/dist-types/**',
+      '**/node_modules/**',
+      'uploads/**',
+      'fixtures/**',
+      'docs/**',
+      'agent-tools/**',
+    ],
   },
   ...tencent({
     tsconfigRootDir: import.meta.dirname,
@@ -21,8 +30,10 @@ export default [
       './packages/app/tsconfig.electron.json',
     ],
   }),
+  { files: ['**/*.cjs'], languageOptions: { sourceType: 'commonjs', globals: globals.node } },
   { files: ['packages/app/**/*.{ts,tsx}'], languageOptions: { globals: globals.browser } },
   { files: ['**/*.{ts,tsx}'], languageOptions: { globals: globals.node } },
-  reactHooks.configs.flat.recommended,
+  // 5.2 的 flat 预设叫 recommended-latest，还没有 configs.flat。
+  reactHooks.configs['recommended-latest'],
   prettier,
 ];

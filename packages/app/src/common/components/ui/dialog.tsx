@@ -22,14 +22,14 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg',
+          'bg-background fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg',
           className,
         )}
         {...props}
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute top-4 right-4 rounded-sm opacity-70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="focus-visible:ring-ring absolute right-4 top-4 rounded-sm opacity-70 focus-visible:outline-none focus-visible:ring-2"
           aria-label="关闭"
         >
           <X className="size-4" />
@@ -48,7 +48,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
 }
 
 function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn('text-sm text-muted-foreground', className)} {...props} />;
+  return <DialogPrimitive.Description className={cn('text-muted-foreground text-sm', className)} {...props} />;
 }
 
 export { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger };

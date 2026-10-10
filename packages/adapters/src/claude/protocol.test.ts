@@ -74,13 +74,27 @@ describe('claude launch options', () => {
 
 describe('claude stream', () => {
   it('回放消息丢掉；限流只有 rejected 才算环境失败；正文里的 rate limit 仍是消息', () => {
-    expect(normalizeClaudeMessage({ type: 'user', isReplay: true, message: { role: 'user', content: 'old' } })).toBeNull();
-    expect(normalizeClaudeMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed_warning' } })).toBeNull();
-    expect(normalizeClaudeMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour' } })).toMatchObject({
+    expect(
+      normalizeClaudeMessage({ type: 'user', isReplay: true, message: { role: 'user', content: 'old' } }),
+    ).toBeNull();
+    expect(
+      normalizeClaudeMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed_warning' } }),
+    ).toBeNull();
+    expect(
+      normalizeClaudeMessage({
+        type: 'rate_limit_event',
+        rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour' },
+      }),
+    ).toMatchObject({
       type: 'environment_failure',
       failure: 'rate_limit',
     });
-    expect(normalizeClaudeMessage({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'docs say rate limit' }] } })).toMatchObject({
+    expect(
+      normalizeClaudeMessage({
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'docs say rate limit' }] },
+      }),
+    ).toMatchObject({
       type: 'message',
       text: 'docs say rate limit',
     });
@@ -89,7 +103,9 @@ describe('claude stream', () => {
   it('手写流里的 can_use_tool 覆盖 shell、改文件、网络和 MCP', () => {
     const marker = fixtureMarker(handwritten);
     expect(marker?.origin).toBe('handwritten');
-    const events = fixtureMessages(handwritten).map((message) => normalizeClaudeMessage(message)).filter(Boolean);
+    const events = fixtureMessages(handwritten)
+      .map((message) => normalizeClaudeMessage(message))
+      .filter(Boolean);
     const approvals = events.filter((event) => event?.type === 'approval_request');
     expect(approvals.map((event) => (event?.type === 'approval_request' ? event.operation : ''))).toEqual([
       'shell',

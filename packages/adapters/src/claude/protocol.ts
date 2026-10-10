@@ -5,7 +5,9 @@ import type { AgentEvent, OperationKind } from '@mufu/core';
  * ANTHROPIC_API_KEY、apiKeyHelper、/login managed key 都拒绝。
  * 旧值 oauth 当前 CLI 不再发；没见到录音之前不放行。
  */
-export function subscriptionFromClaudeInit(apiKeySource: string | undefined): { ok: true } | { ok: false; source: string } {
+export function subscriptionFromClaudeInit(
+  apiKeySource: string | undefined,
+): { ok: true } | { ok: false; source: string } {
   if (apiKeySource === 'none') return { ok: true };
   return { ok: false, source: `apiKeySource=${apiKeySource ?? 'missing'}` };
 }

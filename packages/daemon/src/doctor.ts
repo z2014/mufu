@@ -56,7 +56,7 @@ export async function doctor(userHome: string = homedir()): Promise<DoctorReport
       name === 'gh'
         ? await hint(path, ['auth', 'status'])
         : await hint(path, name === 'codex' ? ['login', 'status'] : ['--version']);
-    tools.push({ name, path, installed: path != null, loginHint });
+    tools.push({ name, path, installed: path !== null, loginHint });
   }
   return {
     tools,

@@ -20,7 +20,9 @@ const handwritten = fileURLToPath(new URL('../../../../fixtures/handwritten/code
 
 describe('codex account', () => {
   it('只有 chatgpt 算订阅，空账号和 apiKey 都拒绝', () => {
-    expect(subscriptionFromCodexAccount({ account: { type: 'chatgpt', planType: 'plus' }, requiresOpenaiAuth: true }).ok).toBe(true);
+    expect(
+      subscriptionFromCodexAccount({ account: { type: 'chatgpt', planType: 'plus' }, requiresOpenaiAuth: true }).ok,
+    ).toBe(true);
     const missing = subscriptionFromCodexAccount({ account: null, requiresOpenaiAuth: true });
     expect(missing.ok).toBe(false);
     const key = subscriptionFromCodexAccount({ account: { type: 'apiKey' }, requiresOpenaiAuth: true });
@@ -53,7 +55,10 @@ describe('codex pitfalls from other apps', () => {
   });
 
   it('别的 thread 的通知丢掉', () => {
-    const foreign = { method: 'item/completed', params: { threadId: 'other', item: { type: 'agentMessage', text: 'nope' } } };
+    const foreign = {
+      method: 'item/completed',
+      params: { threadId: 'other', item: { type: 'agentMessage', text: 'nope' } },
+    };
     expect(isForeignThread(foreign, 'thr_1')).toBe(true);
     expect(normalizeCodexNotification(foreign, 'thr_1')).toBeNull();
   });
@@ -63,7 +68,10 @@ describe('codex pitfalls from other apps', () => {
     expect(classifyCodexError({ httpStatusCode: 401 }).kind).toBe('auth');
     expect(classifyCodexError({ type: 'Other' }).kind).toBe('task');
     const prose = normalizeCodexNotification(
-      { method: 'item/completed', params: { threadId: 'thr_1', item: { type: 'agentMessage', text: 'the docs mention rate limit' } } },
+      {
+        method: 'item/completed',
+        params: { threadId: 'thr_1', item: { type: 'agentMessage', text: 'the docs mention rate limit' } },
+      },
       'thr_1',
     );
     expect(prose).toMatchObject({ type: 'message', text: 'the docs mention rate limit' });
@@ -71,17 +79,21 @@ describe('codex pitfalls from other apps', () => {
 
   it('手写夹具里审批可以早于 item/started，四种操作都能认出来', () => {
     const messages = fixtureMessages(handwritten);
-    const methods = messages.filter((row) => typeof (row as { method?: string }).method === 'string').map((row) => (row as { method: string }).method);
+    const methods = messages
+      .filter((row) => typeof (row as { method?: string }).method === 'string')
+      .map((row) => (row as { method: string }).method);
     const approvalAt = methods.indexOf('item/commandExecution/requestApproval');
     const startedAt = methods.indexOf('item/started');
     expect(approvalAt).toBeGreaterThanOrEqual(0);
     expect(startedAt).toBeGreaterThan(approvalAt);
-    expect(methods).toEqual(expect.arrayContaining([
-      'item/fileChange/requestApproval',
-      'item/permissions/requestApproval',
-      'mcpServer/elicitation/request',
-      'execCommandApproval',
-    ]));
+    expect(methods).toEqual(
+      expect.arrayContaining([
+        'item/fileChange/requestApproval',
+        'item/permissions/requestApproval',
+        'mcpServer/elicitation/request',
+        'execCommandApproval',
+      ]),
+    );
   });
 });
 

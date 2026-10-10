@@ -32,12 +32,14 @@ function flag(name: string): string | undefined {
 function printTask(task: TaskView): void {
   const gate = task.pendingGate ? `${task.pendingGate.summary}（${task.pendingGate.id}）` : '无';
   process.stdout.write(
-    [`任务 #${task.seq} ${task.title}`, `状态：${task.status}`, `阶段：${task.stageId}`, `门禁：${gate}`, `尝试：${task.attempts}  运行：${task.runs}`, `会话：${task.sessionId ?? '无'}`].join('\n') + '\n',
+    `${[`任务 #${task.seq} ${task.title}`, `状态：${task.status}`, `阶段：${task.stageId}`, `门禁：${gate}`, `尝试：${task.attempts}  运行：${task.runs}`, `会话：${task.sessionId ?? '无'}`].join('\n')}\n`,
   );
 }
 
 async function main(): Promise<void> {
-  const [command, sub, extra] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  if (args[0] === '--') args.shift();
+  const [command, sub, extra] = args;
   if (command === 'daemon') {
     const home = dataDir();
     mkdirSync(home, { recursive: true });

@@ -39,10 +39,15 @@ const CONFIG_FILES = [
   join(homedir(), '.claude', 'settings.local.json'),
 ];
 
+function markOf(ok: boolean | null): string {
+  if (ok === null) return '未测';
+  if (ok) return '通过';
+  return '失败';
+}
+
 function printTable(rows: Row[]): void {
   for (const row of rows) {
-    const mark = row.ok === null ? '未测' : row.ok ? '通过' : '失败';
-    process.stdout.write(`${mark}\t${row.name}\t${row.detail}\n`);
+    process.stdout.write(`${markOf(row.ok)}\t${row.name}\t${row.detail}\n`);
   }
 }
 
@@ -104,7 +109,10 @@ async function withTimeout<T>(work: Promise<T>, ms: number, label: string): Prom
   }
 }
 
-async function drive(session: AgentSession, approve: boolean): Promise<{ approvals: string[]; sawInterrupt: boolean; failure: string | null }> {
+async function drive(
+  session: AgentSession,
+  approve: boolean,
+): Promise<{ approvals: string[]; sawInterrupt: boolean; failure: string | null }> {
   const approvals: string[] = [];
   let sawInterrupt = false;
   let failure: string | null = null;
@@ -144,7 +152,7 @@ async function main(): Promise<void> {
   for (const tool of report.tools) {
     rows.push({
       name: `${tool.name} 路径`,
-      ok: tool.installed && tool.path != null && tool.path.startsWith('/'),
+      ok: tool.installed && Boolean(tool.path?.startsWith('/')),
       detail: tool.path ?? '登录 shell 的 command -v 没有找到',
     });
     rows.push({ name: `${tool.name} 登录提示`, ok: tool.installed, detail: tool.loginHint });
@@ -152,7 +160,10 @@ async function main(): Promise<void> {
   rows.push({
     name: '配置文件里的 key',
     ok: true,
-    detail: report.configKeys.length === 0 ? '没有发现' : report.configKeys.map((item) => `${item.tool}:${item.key}`).join(', '),
+    detail:
+      report.configKeys.length === 0
+        ? '没有发现'
+        : report.configKeys.map((item) => `${item.tool}:${item.key}`).join(', '),
   });
 
   const codex = report.tools.find((tool) => tool.name === 'codex');
@@ -234,7 +245,8 @@ async function probeCodex(bin: string, workspace: string, lines: string[]): Prom
     rows.push({
       name: 'Codex interrupt',
       ok: first.sawInterrupt || first.approvals.length > 0,
-      detail: first.failure ?? (first.sawInterrupt ? '收到 interrupted' : '已调用 interrupt；没有 turnId 时适配器不会发'),
+      detail:
+        first.failure ?? (first.sawInterrupt ? '收到 interrupted' : '已调用 interrupt；没有 turnId 时适配器不会发'),
     });
     const again = await adapter.startSession({
       taskId: 'verify-codex-resume',
@@ -248,12 +260,20 @@ async function probeCodex(bin: string, workspace: string, lines: string[]): Prom
       detail: `resume id ${again.sessionId}`,
     });
     await drive(again, true).catch((error: unknown) => {
-      rows.push({ name: 'Codex 恢复后的回合', ok: false, detail: error instanceof Error ? error.message : String(error) });
+      rows.push({
+        name: 'Codex 恢复后的回合',
+        ok: false,
+        detail: error instanceof Error ? error.message : String(error),
+      });
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     rows.push({ name: 'Codex 订阅登录', ok: false, detail: message });
-    rows.push({ name: 'forced_login_method 是否把用户登出', ok: null, detail: '看上面的错误。官方文档写明不匹配会退出登录' });
+    rows.push({
+      name: 'forced_login_method 是否把用户登出',
+      ok: null,
+      detail: '看上面的错误。官方文档写明不匹配会退出登录',
+    });
   }
   return rows;
 }

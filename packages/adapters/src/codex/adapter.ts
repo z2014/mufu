@@ -1,4 +1,12 @@
-import { PRODUCT_VERSION, SubscriptionRefused, type AgentAdapter, type AgentEvent, type AgentSession, type GateDecision, type StartSession } from '@mufu/core';
+import {
+  PRODUCT_VERSION,
+  SubscriptionRefused,
+  type AgentAdapter,
+  type AgentEvent,
+  type AgentSession,
+  type GateDecision,
+  type StartSession,
+} from '@mufu/core';
 
 import { scrubEnv } from '../env.ts';
 import { EventQueue } from '../line-queue.ts';
@@ -55,7 +63,14 @@ export function createCodexAdapter(options?: {
       let closed = false;
 
       const fail = (error: Error) => {
-        if (!closed) events.push({ type: 'environment_failure', message: error.message, tool: 'codex', source: error.message, failure: 'auth' });
+        if (!closed)
+          events.push({
+            type: 'environment_failure',
+            message: error.message,
+            tool: 'codex',
+            source: error.message,
+            failure: 'auth',
+          });
       };
 
       const send = (method: string, params: Json, expectReply: boolean): Promise<Json> => {
@@ -92,7 +107,9 @@ export function createCodexAdapter(options?: {
               const decision = await new Promise<GateDecision>((resolve) => {
                 decisions.set(event.requestId, resolve);
               });
-              transport.send(JSON.stringify({ id: request.id, result: approvalResult(request.method, decision, request.params) }));
+              transport.send(
+                JSON.stringify({ id: request.id, result: approvalResult(request.method, decision, request.params) }),
+              );
               continue;
             }
             transport.send(JSON.stringify({ id: request.id, result: { decision: 'decline' } }));
@@ -144,11 +161,7 @@ export function createCodexAdapter(options?: {
         threadId = result.thread?.id ?? input.resumeSessionId ?? null;
         if (!threadId) throw new Error('thread 没有 id');
 
-        const turn = await send(
-          'turn/start',
-          { threadId, input: [{ type: 'text', text: input.prompt }] },
-          true,
-        );
+        const turn = await send('turn/start', { threadId, input: [{ type: 'text', text: input.prompt }] }, true);
         const turnResult = (turn.result ?? {}) as { turn?: { id?: string } };
         turnId = turnResult.turn?.id ?? null;
 

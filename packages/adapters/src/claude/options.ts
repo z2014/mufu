@@ -11,7 +11,12 @@ export type ClaudeLaunchOptions = {
   includePartialMessages: false;
   hooks: {
     PreToolUse: Array<{
-      hooks: Array<() => Promise<{ continue: true; hookSpecificOutput: { hookEventName: 'PreToolUse'; permissionDecision: 'ask' } }>>;
+      hooks: Array<
+        () => Promise<{
+          continue: true;
+          hookSpecificOutput: { hookEventName: 'PreToolUse'; permissionDecision: 'ask' };
+        }>
+      >;
     }>;
   };
 };

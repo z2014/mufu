@@ -56,7 +56,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
   const task = map.get(event.taskId);
   if (!task) return;
   task.updatedAt = event.at;
-  const payload = event.payload;
+  const { payload } = event;
 
   switch (event.type) {
     case 'task.status': {

@@ -3,4 +3,14 @@
  */
 export { PRODUCT_NAME, DEFAULT_WS_PORT } from './product.ts';
 export { columnOf, sortInColumn, MAX_ATTEMPTS, MAX_PINS_PER_STAGE } from './model.ts';
-export type { ArtifactView, Attention, Column, GateView, MessageView, PinView, TaskStatus, TaskView, Workflow } from './model.ts';
+export type {
+  ArtifactView,
+  Attention,
+  Column,
+  GateView,
+  MessageView,
+  PinView,
+  TaskStatus,
+  TaskView,
+  Workflow,
+} from './model.ts';

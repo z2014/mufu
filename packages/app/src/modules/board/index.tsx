@@ -55,67 +55,78 @@ export function Component() {
   const waiting = (grouped?.needs_you.length ?? 0) + (grouped?.to_review.length ?? 0);
 
   return (
-    <div className="flex h-dvh flex-col bg-background md:flex-row">
-      <nav className="flex gap-1 overflow-x-auto border-b bg-muted px-2 py-2 md:w-44 md:flex-col md:overflow-visible md:border-r md:border-b-0 md:px-2 md:py-2.5">
+    <div className="bg-background flex h-dvh flex-col md:flex-row">
+      <nav className="bg-muted flex gap-1 overflow-x-auto border-b px-2 py-2 md:w-44 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:px-2 md:py-2.5">
         <div className="mb-1 hidden gap-1.5 md:flex">
-          <button type="button" className="h-8 flex-1 rounded-md bg-accent text-muted-foreground" aria-label="新任务" onClick={() => setOpen(true)}>
+          <button
+            type="button"
+            className="bg-accent text-muted-foreground h-8 flex-1 rounded-md"
+            aria-label="新任务"
+            onClick={() => setOpen(true)}
+          >
             ＋
           </button>
-          <button type="button" className="size-8 rounded-md bg-accent text-muted-foreground" aria-disabled="true">
+          <button type="button" className="bg-accent text-muted-foreground size-8 rounded-md" aria-disabled="true">
             ⌕
           </button>
         </div>
         {nav.map((item) =>
           item.live ? (
-            <Link key={item.label} to="/" className="flex items-center gap-2.5 rounded-md bg-accent px-2.5 py-1.5 font-medium">
-              <span className="w-3.5 text-center text-muted-foreground">{item.icon}</span>
+            <Link
+              key={item.label}
+              to="/"
+              className="bg-accent flex items-center gap-2.5 rounded-md px-2.5 py-1.5 font-medium"
+            >
+              <span className="text-muted-foreground w-3.5 text-center">{item.icon}</span>
               {item.label}
-              <span className="ml-auto text-[11px] text-muted-foreground">{tasks.data?.length ?? 0}</span>
+              <span className="text-muted-foreground ml-auto text-[11px]">{tasks.data?.length ?? 0}</span>
             </Link>
           ) : (
             <button
               key={item.label}
               type="button"
               aria-disabled="true"
-              className="flex cursor-default items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-foreground"
+              className="text-foreground flex cursor-default items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left"
             >
-              <span className="w-3.5 text-center text-muted-foreground">{item.icon}</span>
+              <span className="text-muted-foreground w-3.5 text-center">{item.icon}</span>
               {item.label}
             </button>
           ),
         )}
-        <p className="mt-auto hidden px-2 pt-6 text-[11px] text-muted-foreground md:block">
+        <p className="text-muted-foreground mt-auto hidden px-2 pt-6 text-[11px] md:block">
           Codex <Dot on={doctor.data?.tools.find((tool) => tool.name === 'codex')?.installed} /> Claude{' '}
           <Dot on={doctor.data?.tools.find((tool) => tool.name === 'claude')?.installed} />
         </p>
       </nav>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-12 items-center gap-3 border-b px-4 text-muted-foreground">
+        <header className="text-muted-foreground flex h-12 items-center gap-3 border-b px-4">
           <span>全部项目</span>
           <span className="hidden sm:inline">排序</span>
           <span className="hidden sm:inline">模板：全部</span>
-          <span className="text-foreground">等你 {grouped?.needs_you.length ?? 0} · 待验收 {grouped?.to_review.length ?? 0}</span>
+          <span className="text-foreground">
+            等你 {grouped?.needs_you.length ?? 0} · 待验收 {grouped?.to_review.length ?? 0}
+          </span>
           <Button className="ml-auto" size="sm" onClick={() => setOpen(true)}>
             ＋ 新任务
           </Button>
           <div className="hidden gap-1 sm:flex">
-            <span className="rounded bg-accent px-1.5 py-0.5 text-foreground">▦</span>
+            <span className="bg-accent text-foreground rounded px-1.5 py-0.5">▦</span>
             <span className="px-1.5 py-0.5" aria-disabled="true">
               ☰
             </span>
           </div>
         </header>
-        {tasks.isPending ? <p className="p-6 text-sm text-muted-foreground">正在读取任务</p> : null}
+        {tasks.isPending ? <p className="text-muted-foreground p-6 text-sm">正在读取任务</p> : null}
         {tasks.isError ? (
-          <p className="m-4 flex items-center gap-2 rounded-lg border border-foreground px-3 py-2 text-sm">
-            <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+          <p className="border-foreground m-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+            <span className="bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[11px] font-bold">
               !
             </span>
             {tasks.error instanceof DaemonError ? tasks.error.message : '任务列表没有读出来'}
           </p>
         ) : null}
         {grouped && tasks.data?.length === 0 ? (
-          <p className="px-4 pt-4 text-sm text-muted-foreground">看板上还没有任务。建一个，它会从「进行中」开始。</p>
+          <p className="text-muted-foreground px-4 pt-4 text-sm">看板上还没有任务。建一个，它会从「进行中」开始。</p>
         ) : null}
         {grouped ? (
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 overflow-auto p-3 md:grid-cols-3 md:p-4">
@@ -141,7 +152,5 @@ export function Component() {
 }
 
 function Dot({ on }: { on: boolean | undefined }) {
-  return (
-    <span className={cn('inline-block size-1.5 rounded-full', on ? 'bg-foreground' : 'bg-border')} aria-hidden />
-  );
+  return <span className={cn('inline-block size-1.5 rounded-full', on ? 'bg-foreground' : 'bg-border')} aria-hidden />;
 }

@@ -15,7 +15,8 @@ export type CodexAccountRead = {
 export function subscriptionFromCodexAccount(result: CodexAccountRead): { ok: true } | { ok: false; source: string } {
   const type = result.account?.type;
   if (type === 'chatgpt') return { ok: true };
-  if (!result.account) return { ok: false, source: result.requiresOpenaiAuth ? 'account=null' : 'account=null,requiresOpenaiAuth=false' };
+  if (!result.account)
+    return { ok: false, source: result.requiresOpenaiAuth ? 'account=null' : 'account=null,requiresOpenaiAuth=false' };
   return { ok: false, source: `account.type=${type ?? 'missing'}` };
 }
 
@@ -61,7 +62,7 @@ export function messageThreadId(message: Json): string | null {
 export function isForeignThread(message: Json, ownThreadId: string | null): boolean {
   if (!ownThreadId) return false;
   const threadId = messageThreadId(message);
-  return threadId != null && threadId !== ownThreadId;
+  return threadId !== null && threadId !== ownThreadId;
 }
 
 const ENVIRONMENT_CODEX = new Set([
@@ -76,7 +77,8 @@ export function classifyCodexError(info: { type?: string; httpStatusCode?: numbe
   const type = info?.type;
   const status = info?.httpStatusCode;
   if (type === 'UsageLimitExceeded' || status === 429) return { kind: 'rate_limit', detail: type ?? '429' };
-  if (type === 'Unauthorized' || status === 401 || status === 403) return { kind: 'auth', detail: type ?? String(status) };
+  if (type === 'Unauthorized' || status === 401 || status === 403)
+    return { kind: 'auth', detail: type ?? String(status) };
   if (type && ENVIRONMENT_CODEX.has(type)) return { kind: 'network', detail: type };
   return { kind: 'task', detail: type ?? 'codex failed' };
 }
@@ -136,7 +138,7 @@ export function operationForCodexMethod(method: string, params: Json): Operation
 }
 
 export function approvalEvent(request: CodexServerRequest): Extract<AgentEvent, { type: 'approval_request' }> {
-  const params = request.params;
+  const { params } = request;
   const itemId = typeof params.itemId === 'string' ? params.itemId : String(request.id);
   const command = typeof params.command === 'string' ? params.command : '';
   const reason = typeof params.reason === 'string' ? params.reason : '';
@@ -154,7 +156,7 @@ export function approvalEvent(request: CodexServerRequest): Extract<AgentEvent, 
 
 export function normalizeCodexNotification(message: Json, ownThreadId: string | null): AgentEvent | null {
   if (isForeignThread(message, ownThreadId)) return null;
-  const method = message.method;
+  const { method } = message;
   const params = asRecord(message.params) ?? {};
   if (method === 'item/agentMessage/delta') {
     const delta = typeof params.delta === 'string' ? params.delta : '';
@@ -164,8 +166,9 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
   if (method === 'error') {
     const error = asRecord(params.error) ?? params;
     const info = asRecord(error.codexErrorInfo) ?? asRecord(params.codexErrorInfo);
+    const errorType = typeof error.type === 'string' ? error.type : undefined;
     const failure = classifyCodexError({
-      type: typeof info?.type === 'string' ? info.type : typeof error.type === 'string' ? error.type : undefined,
+      type: typeof info?.type === 'string' ? info.type : errorType,
       httpStatusCode: typeof info?.httpStatusCode === 'number' ? info.httpStatusCode : undefined,
     });
     if (failure.kind === 'task') return null;
@@ -189,7 +192,13 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
         httpStatusCode: typeof info?.httpStatusCode === 'number' ? info.httpStatusCode : undefined,
       });
       if (failure.kind !== 'task') {
-        return { type: 'environment_failure', message: failure.detail, tool: 'codex', source: failure.detail, failure: failure.kind };
+        return {
+          type: 'environment_failure',
+          message: failure.detail,
+          tool: 'codex',
+          source: failure.detail,
+          failure: failure.kind,
+        };
       }
       return { type: 'completed', ok: false, reason: failure.detail };
     }

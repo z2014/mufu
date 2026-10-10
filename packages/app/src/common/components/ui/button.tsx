@@ -37,6 +37,8 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
   }) {
+  // 小写变量会被 JSX 当成 HTML 标签，所以这里沿用 shadcn 的大写变量。
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Slot 与 button 共用一个组件变量
   const Comp = asChild ? Slot : 'button';
   return <Comp className={cn(buttonVariants({ variant, size, className }))} {...props} />;
 }

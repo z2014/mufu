@@ -14,23 +14,23 @@ export function BoardColumn({ column, tasks }: { column: Column; tasks: TaskView
   const active = column === 'running' ? sorted.filter((task) => task.status !== 'queued') : sorted;
   const meta = copy[column];
   return (
-    <section className="flex min-h-48 flex-col rounded-lg bg-muted p-2" aria-label={meta.title}>
-      <header className="flex items-center gap-2 px-1.5 pt-0.5 pb-2.5 font-semibold">
-        <span className="size-3 rounded-full border border-foreground" aria-hidden />
+    <section className="bg-muted flex min-h-48 flex-col rounded-lg p-2" aria-label={meta.title}>
+      <header className="flex items-center gap-2 px-1.5 pb-2.5 pt-0.5 font-semibold">
+        <span className="border-foreground size-3 rounded-full border" aria-hidden />
         {meta.title}
-        <span className="font-normal text-muted-foreground">{sorted.length}</span>
-        <span className="ml-auto text-[11px] font-normal text-muted-foreground">{meta.hint}</span>
+        <span className="text-muted-foreground font-normal">{sorted.length}</span>
+        <span className="text-muted-foreground ml-auto text-[11px] font-normal">{meta.hint}</span>
       </header>
-      {sorted.length === 0 ? <p className="px-1.5 text-xs text-muted-foreground">这一列还没有任务</p> : null}
+      {sorted.length === 0 ? <p className="text-muted-foreground px-1.5 text-xs">这一列还没有任务</p> : null}
       {active.map((task) => (
         <TaskCard key={task.id} task={task} />
       ))}
-      {queued.length > 0 ? <p className="px-1.5 py-1.5 text-[11px] text-muted-foreground">等待开始</p> : null}
+      {queued.length > 0 ? <p className="text-muted-foreground px-1.5 py-1.5 text-[11px]">等待开始</p> : null}
       {queued.map((task) => (
         <TaskCard key={task.id} task={task} />
       ))}
       {column === 'to_review' ? (
-        <p className="mt-3 text-center text-[11.5px] text-muted-foreground">验收后任务完成，离开看板</p>
+        <p className="text-muted-foreground mt-3 text-center text-[11.5px]">验收后任务完成，离开看板</p>
       ) : null}
     </section>
   );

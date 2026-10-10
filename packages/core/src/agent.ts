@@ -18,7 +18,13 @@ export type AgentEvent =
     }
   | { type: 'completed'; ok: boolean; reason?: string }
   | { type: 'interrupted' }
-  | { type: 'environment_failure'; message: string; tool?: string; source?: string; failure: 'rate_limit' | 'auth' | 'network' };
+  | {
+      type: 'environment_failure';
+      message: string;
+      tool?: string;
+      source?: string;
+      failure: 'rate_limit' | 'auth' | 'network';
+    };
 
 export type StartSession = {
   taskId: string;

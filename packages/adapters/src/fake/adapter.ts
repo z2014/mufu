@@ -34,7 +34,7 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
     kind: 'fake',
     async startSession(input: StartSession): Promise<AgentSession> {
       const marker = fixtureMarker(fixturePath);
-      if (!marker || marker.protocol !== 'mufu-fake') {
+      if (marker?.protocol !== 'mufu-fake') {
         throw new Error(`fake 代理只回放标明来源的 mufu-fake 夹具：${fixturePath}`);
       }
       const lines = readFileSync(fixturePath, 'utf8')
@@ -44,7 +44,8 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
         .map((line) => JSON.parse(line) as FakeLine)
         .filter((line) => !isFixtureMarker(line));
 
-      const sessionId = input.resumeSessionId ?? lines.find((line) => line.sessionId)?.sessionId ?? `fake-${input.taskId}`;
+      const sessionId =
+        input.resumeSessionId ?? lines.find((line) => line.sessionId)?.sessionId ?? `fake-${input.taskId}`;
       const decisions = new Map<string, (decision: GateDecision) => void>();
       let interrupted = false;
 
@@ -60,10 +61,13 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
           const event = toEvent(line);
           if (!event) continue;
           if (event.type === 'approval_request') {
-            yield event;
-            const decision = await new Promise<GateDecision>((resolve) => {
-              decisions.set(event.requestId, resolve);
+            let resolveDecision: (decision: GateDecision) => void = () => undefined;
+            const decisionPromise = new Promise<GateDecision>((resolve) => {
+              resolveDecision = resolve;
             });
+            decisions.set(event.requestId, resolveDecision);
+            yield event;
+            const decision = await decisionPromise;
             if (interrupted) {
               yield { type: 'interrupted' };
               return;

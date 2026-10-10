@@ -43,23 +43,25 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, pending, errorM
           <DialogTitle>新任务</DialogTitle>
           <DialogDescription>任务会进 git worktree，由本地代理按流程做。合并不会自动发生。</DialogDescription>
         </DialogHeader>
-        <form className="mt-4 flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)}>
+        <form
+          className="mt-4 flex flex-col gap-3"
+          onSubmit={(event) => {
+            void form.handleSubmit(onSubmit)(event);
+          }}
+        >
           <label className="flex flex-col gap-1 text-sm">
             标题
             <Input {...form.register('title')} />
-            <span className="text-xs text-muted-foreground">{form.formState.errors.title?.message}</span>
+            <span className="text-muted-foreground text-xs">{form.formState.errors.title?.message}</span>
           </label>
           <label className="flex flex-col gap-1 text-sm">
             描述
             <Textarea {...form.register('prompt')} />
-            <span className="text-xs text-muted-foreground">{form.formState.errors.prompt?.message}</span>
+            <span className="text-muted-foreground text-xs">{form.formState.errors.prompt?.message}</span>
           </label>
           <label className="flex flex-col gap-1 text-sm">
             流程
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3"
-              {...form.register('workflowId')}
-            >
+            <select className="border-input bg-background h-9 rounded-md border px-3" {...form.register('workflowId')}>
               <option value="fix-bug">修 bug</option>
               <option value="new-feature">新功能</option>
             </select>

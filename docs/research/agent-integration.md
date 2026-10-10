@@ -72,20 +72,20 @@ Claude：[`sdkOptionsBuilder.ts`](https://github.com/nimbalyst/nimbalyst/blob/ma
 
 ## 幕府因此固定下来的行为
 
-| 坑 | 适配器里的做法 |
-| --- | --- |
-| 审批早于 `item/started` | 用请求的 `itemId` / JSON-RPC id，不等开始事件 |
-| 恢复用 fork 或失败后改 `thread/start` | 只发 `thread/resume`，失败就停 |
-| resume 不带策略 | resume 参数带上 cwd 和 `approvalPolicy: "onRequest"` |
-| interrupt 缺 `turnId` | 没有 turn id 就不发 |
-| 子线程通知 | `threadId` 不符的通知丢掉 |
-| 审批回复 null / `denied` | `accept`/`decline`，MCP 用 `{ action, content }` |
-| 旧审批方法名 | `applyPatchApproval`、`execCommandApproval` 同样进门禁 |
-| `allowedTools: ['*']`、`permissionMode: 'auto'` | 不设 allowedTools，模式用 `default` |
-| 字符串 prompt 关掉 stdin | prompt 是 AsyncIterable，init 确认订阅之后才吐出任务 |
-| `apiKeySource` 不是 `none` | 不放行任务，记环境失败 |
-| 每条 `rate_limit_event` 都当失败 | 只有 `rejected`；Codex 只认 `codexErrorInfo` |
-| 刮终端认限流 | 助手正文里的 “rate limit” 仍是普通消息 |
-| 改用户 settings / 注入 API key | 探测只读；子进程环境剥掉三把 key；不调用 `account/login/start` |
-| GUI PATH | doctor 用登录 shell 的 `command -v` 记绝对路径 |
-| 额度窗口看位置 | 按秒数（或分钟换算）区分 5 小时和 7 天 |
+| 坑                                              | 适配器里的做法                                                 |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| 审批早于 `item/started`                         | 用请求的 `itemId` / JSON-RPC id，不等开始事件                  |
+| 恢复用 fork 或失败后改 `thread/start`           | 只发 `thread/resume`，失败就停                                 |
+| resume 不带策略                                 | resume 参数带上 cwd 和 `approvalPolicy: "onRequest"`           |
+| interrupt 缺 `turnId`                           | 没有 turn id 就不发                                            |
+| 子线程通知                                      | `threadId` 不符的通知丢掉                                      |
+| 审批回复 null / `denied`                        | `accept`/`decline`，MCP 用 `{ action, content }`               |
+| 旧审批方法名                                    | `applyPatchApproval`、`execCommandApproval` 同样进门禁         |
+| `allowedTools: ['*']`、`permissionMode: 'auto'` | 不设 allowedTools，模式用 `default`                            |
+| 字符串 prompt 关掉 stdin                        | prompt 是 AsyncIterable，init 确认订阅之后才吐出任务           |
+| `apiKeySource` 不是 `none`                      | 不放行任务，记环境失败                                         |
+| 每条 `rate_limit_event` 都当失败                | 只有 `rejected`；Codex 只认 `codexErrorInfo`                   |
+| 刮终端认限流                                    | 助手正文里的 “rate limit” 仍是普通消息                         |
+| 改用户 settings / 注入 API key                  | 探测只读；子进程环境剥掉三把 key；不调用 `account/login/start` |
+| GUI PATH                                        | doctor 用登录 shell 的 `command -v` 记绝对路径                 |
+| 额度窗口看位置                                  | 按秒数（或分钟换算）区分 5 小时和 7 天                         |

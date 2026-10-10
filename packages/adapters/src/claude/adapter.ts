@@ -45,7 +45,8 @@ export function createClaudeAdapter(options?: {
       let sessionId = input.resumeSessionId ?? '';
       let checked = false;
       let verdict: { ok: true; sessionId: string } | { ok: false; source: string } | null = null;
-      let resolveVerdict: (value: { ok: true; sessionId: string } | { ok: false; source: string }) => void = () => undefined;
+      let resolveVerdict: (value: { ok: true; sessionId: string } | { ok: false; source: string }) => void = () =>
+        undefined;
       const verdictReady = new Promise<{ ok: true; sessionId: string } | { ok: false; source: string }>((resolve) => {
         resolveVerdict = resolve;
       });

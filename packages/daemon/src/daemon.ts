@@ -69,7 +69,9 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     log.append({ taskId, type: 'task.status', payload: { status } });
   };
 
-  const activeCount = () => views().filter((task) => task.status === 'running' || task.status === 'needs_you' || task.status === 'to_review').length;
+  const activeCount = () =>
+    views().filter((task) => task.status === 'running' || task.status === 'needs_you' || task.status === 'to_review')
+      .length;
 
   async function runTask(taskId: string): Promise<void> {
     if (running.has(taskId)) return;
@@ -82,7 +84,14 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     log.append({
       taskId,
       type: 'agent.message',
-      payload: { role: 'lead', author: '协调 Agent', text: leadIntro(task.workflow.title, task.workflow.stages.map((stage) => stage.title)) },
+      payload: {
+        role: 'lead',
+        author: '协调 Agent',
+        text: leadIntro(
+          task.workflow.title,
+          task.workflow.stages.map((stage) => stage.title),
+        ),
+      },
     });
     try {
       const session = await adapter.startSession({
@@ -142,7 +151,13 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         log.append({
           taskId,
           type: 'pin.added',
-          payload: { pinId: randomUUID(), message: event.message, reason: event.reason, author: event.author, stageId: current.stageId },
+          payload: {
+            pinId: randomUUID(),
+            message: event.message,
+            reason: event.reason,
+            author: event.author,
+            stageId: current.stageId,
+          },
         });
       }
     } else if (event.type === 'artifact') {
@@ -189,7 +204,11 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     } else if (event.type === 'completed') {
       if (!event.ok) {
         const attempts = current.attempts + 1;
-        log.append({ taskId, type: 'attempt.counted', payload: { attempt: attempts, reason: event.reason ?? 'failed' } });
+        log.append({
+          taskId,
+          type: 'attempt.counted',
+          payload: { attempt: attempts, reason: event.reason ?? 'failed' },
+        });
         log.append({ taskId, type: 'run.finished', payload: { outcome: 'failed' } });
         if (attempts >= MAX_ATTEMPTS) {
           log.append({
@@ -271,7 +290,11 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         return log.readAll().filter((event) => event.taskId === params.taskId);
       case 'task.note': {
         const taskId = String(params.taskId);
-        log.append({ taskId, type: 'agent.message', payload: { role: 'user', author: '你', text: String(params.text ?? '') } });
+        log.append({
+          taskId,
+          type: 'agent.message',
+          payload: { role: 'user', author: '你', text: String(params.text ?? '') },
+        });
         return one(taskId);
       }
       case 'gate.resolve':

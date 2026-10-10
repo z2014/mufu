@@ -24,11 +24,21 @@ function scripted(script: Script) {
     send(line: string) {
       const message = JSON.parse(line) as Record<string, unknown>;
       sent.push(message);
-      const id = message.id;
+      const { id } = message;
       if (message.method === 'initialize') {
-        incoming.push(JSON.stringify({ id, result: { userAgent: 'test', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'linux' } }));
+        incoming.push(
+          JSON.stringify({
+            id,
+            result: { userAgent: 'test', codexHome: '/tmp', platformFamily: 'unix', platformOs: 'linux' },
+          }),
+        );
       } else if (message.method === 'account/read') {
-        incoming.push(JSON.stringify({ id, result: script.account ?? { account: { type: 'chatgpt', planType: 'plus' }, requiresOpenaiAuth: true } }));
+        incoming.push(
+          JSON.stringify({
+            id,
+            result: script.account ?? { account: { type: 'chatgpt', planType: 'plus' }, requiresOpenaiAuth: true },
+          }),
+        );
       } else if (message.method === 'thread/resume' && script.resumeError) {
         incoming.push(JSON.stringify({ id, error: { message: script.resumeError } }));
       } else if (message.method === 'thread/start' || message.method === 'thread/resume') {
@@ -40,13 +50,28 @@ function scripted(script: Script) {
           incoming.push(JSON.stringify(script.approval));
         }
         if (script.foreignThread) {
-          incoming.push(JSON.stringify({ method: 'item/completed', params: { threadId: 'other', item: { type: 'agentMessage', text: 'child' } } }));
-          incoming.push(JSON.stringify({ method: 'item/completed', params: { threadId: 'thr_real', item: { type: 'agentMessage', text: 'ours' } } }));
+          incoming.push(
+            JSON.stringify({
+              method: 'item/completed',
+              params: { threadId: 'other', item: { type: 'agentMessage', text: 'child' } },
+            }),
+          );
+          incoming.push(
+            JSON.stringify({
+              method: 'item/completed',
+              params: { threadId: 'thr_real', item: { type: 'agentMessage', text: 'ours' } },
+            }),
+          );
         }
       } else if (message.method === 'turn/interrupt') {
         incoming.push(JSON.stringify({ id, result: {} }));
       } else if (script.approval && id === script.approval.id) {
-        incoming.push(JSON.stringify({ method: 'turn/completed', params: { threadId: 'thr_real', turn: { id: 'turn_1', status: 'completed' } } }));
+        incoming.push(
+          JSON.stringify({
+            method: 'turn/completed',
+            params: { threadId: 'thr_real', turn: { id: 'turn_1', status: 'completed' } },
+          }),
+        );
       }
     },
     close() {
@@ -72,7 +97,9 @@ describe('codex adapter sequencing', () => {
         return transport;
       },
     });
-    await expect(adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' })).rejects.toBeInstanceOf(SubscriptionRefused);
+    await expect(adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' })).rejects.toBeInstanceOf(
+      SubscriptionRefused,
+    );
     expect(methods(sent)).toEqual(['initialize', 'initialized', 'account/read']);
     expect(methods(sent)).not.toContain('account/login/start');
     expect(methods(sent)).not.toContain('turn/start');
@@ -114,7 +141,10 @@ describe('codex adapter sequencing', () => {
     expect(collected.some((event) => event.type === 'message' && event.text === 'ours')).toBe(true);
     const reply = sent.find((message) => message.id === 90);
     expect(reply?.result).toEqual({ decision: 'accept' });
-    expect(collected.find((event) => event.type === 'approval_request')).toMatchObject({ requestId: '90', operation: 'shell' });
+    expect(collected.find((event) => event.type === 'approval_request')).toMatchObject({
+      requestId: '90',
+      operation: 'shell',
+    });
   });
 
   it('还没有 turnId 时 interrupt 不发请求', async () => {

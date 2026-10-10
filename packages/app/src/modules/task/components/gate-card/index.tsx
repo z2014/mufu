@@ -16,7 +16,7 @@ export function GateCard({
     <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border px-4 py-3.5 md:mx-14">
       <div className="min-w-0 flex-1">
         <p className="font-semibold">{gate.summary}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{gate.detail || gate.operation}</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{gate.detail || gate.operation}</p>
       </div>
       <Button type="button" variant="outline" disabled={pending} onClick={() => onDecide('reject')}>
         打回

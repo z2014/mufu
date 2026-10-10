@@ -42,7 +42,7 @@ export function detectConfigKeySources(home: string = homedir()): ConfigKeyFindi
     try {
       const auth = JSON.parse(authRaw) as Record<string, unknown>;
       const mode = typeof auth.auth_mode === 'string' ? auth.auth_mode : '';
-      const tokens = auth.tokens;
+      const { tokens } = auth;
       const hasApiKey =
         mode === 'apikey' ||
         (tokens && typeof tokens === 'object' && 'api_key' in (tokens as Record<string, unknown>)) ||
@@ -63,7 +63,8 @@ export function detectConfigKeySources(home: string = homedir()): ConfigKeyFindi
         found.push({ tool: 'claude', file: path, key: 'apiKeyHelper' });
       }
       const env = json.env ?? {};
-      if (typeof env.ANTHROPIC_API_KEY === 'string') found.push({ tool: 'claude', file: path, key: 'env.ANTHROPIC_API_KEY' });
+      if (typeof env.ANTHROPIC_API_KEY === 'string')
+        found.push({ tool: 'claude', file: path, key: 'env.ANTHROPIC_API_KEY' });
       if (typeof env.ANTHROPIC_AUTH_TOKEN === 'string') {
         found.push({ tool: 'claude', file: path, key: 'env.ANTHROPIC_AUTH_TOKEN' });
       }

@@ -3,6 +3,12 @@ import { Link } from 'react-router';
 
 import { cn } from '@/common/utils';
 
+function agentMark(kind: string | null): string {
+  if (kind === 'claude') return 'C';
+  if (kind === 'codex') return 'x';
+  return '代';
+}
+
 function stageTitle(task: TaskView): string {
   return task.workflow.stages.find((stage) => stage.id === task.stageId)?.title ?? task.stageId;
 }
@@ -38,14 +44,14 @@ export function TaskCard({ task }: { task: TaskView }) {
   return (
     <article
       className={cn(
-        'mb-2 rounded-lg border bg-card px-3 py-2.5 shadow-sm',
-        queued && 'border-dashed bg-muted text-muted-foreground',
+        'bg-card mb-2 rounded-lg border px-3 py-2.5 shadow-sm',
+        queued && 'bg-muted text-muted-foreground border-dashed',
         task.attention && 'border-foreground',
       )}
     >
-      <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-1.5 text-[11.5px]">
         <span>#{task.seq}</span>
-        <span className="rounded bg-secondary px-1.5 text-[10.5px] text-muted-foreground">
+        <span className="bg-secondary text-muted-foreground rounded px-1.5 text-[10.5px]">
           {task.workflow.title} · {stageTitle(task)}
         </span>
         <span className="ml-1 tracking-widest" aria-hidden>
@@ -59,32 +65,35 @@ export function TaskCard({ task }: { task: TaskView }) {
       <h3 className="mt-1.5 flex items-center gap-1.5 text-[13.5px] font-semibold">
         {task.attention ? (
           <span
-            className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+            className="bg-primary text-primary-foreground inline-flex size-4 items-center justify-center rounded-full text-[10px] font-bold"
             aria-label="出问题了"
           >
             !
           </span>
         ) : null}
-        <Link to={`/task/${task.id}`} className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+        <Link
+          to={`/task/${task.id}`}
+          className="focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2"
+        >
           {task.title}
         </Link>
       </h3>
-      <p className="truncate text-xs text-muted-foreground">{summary(task)}</p>
-      <div className="mt-2.5 flex items-center gap-2 text-[11.5px] text-muted-foreground">
+      <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
+      <div className="text-muted-foreground mt-2.5 flex items-center gap-2 text-[11.5px]">
         <span
           className={cn(
-            'inline-flex size-5 items-center justify-center rounded-full text-[9px] text-primary-foreground',
+            'text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]',
             queued ? 'bg-border' : 'bg-primary',
           )}
         >
-          {task.agentKind === 'claude' ? 'C' : task.agentKind === 'codex' ? 'x' : '代'}
+          {agentMark(task.agentKind)}
         </span>
         <span className="ml-auto">{statusText(task)}</span>
         {label ? (
           <Link
             to={`/task/${task.id}`}
             className={cn(
-              'rounded-md border px-2 py-0.5 text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'text-foreground focus-visible:ring-ring rounded-md border px-2 py-0.5 focus-visible:outline-none focus-visible:ring-2',
               task.status === 'to_review' && 'border-primary bg-primary text-primary-foreground',
             )}
           >

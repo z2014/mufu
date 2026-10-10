@@ -1,7 +1,41 @@
 import { describe, expect, it } from 'vitest';
 
-import { LAUNCH_AGENT_LABEL, PRODUCT_NAME, classifyCodexQuotaWindow, countsAsAttempt, launchAgentPlist } from './index.ts';
-import { assertTransition, columnOf, sortInColumn, type TaskView } from './model.ts';
+import {
+  LAUNCH_AGENT_LABEL,
+  PRODUCT_NAME,
+  classifyCodexQuotaWindow,
+  countsAsAttempt,
+  launchAgentPlist,
+} from './index.ts';
+import { assertTransition, columnOf, sortInColumn, type TaskStatus, type TaskView } from './model.ts';
+
+function task(status: TaskStatus, seq: number, attention: TaskView['attention']): TaskView {
+  return {
+    id: 't',
+    seq,
+    title: 't',
+    prompt: 'p',
+    workflow: {
+      id: 'fix-bug',
+      title: '修 bug',
+      doneWhen: 'final_gate_approved',
+      stages: [{ id: 'reproduce', title: '复现' }],
+    },
+    status,
+    stageId: 'reproduce',
+    attention,
+    pendingGate: null,
+    sessionId: null,
+    agentKind: null,
+    pins: [],
+    artifacts: [],
+    messages: [],
+    attempts: 0,
+    runs: 0,
+    workspacePath: null,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
 
 describe('product name', () => {
   it('派生名都来自同一个常量', () => {
@@ -31,13 +65,9 @@ describe('quota windows', () => {
 
 describe('columns', () => {
   it('完成的任务离开看板，带 ! 的排在前面', () => {
-    const base = { status: 'needs_you', attention: null, seq: 2 } as TaskView;
-    expect(columnOf({ ...base, status: 'done' })).toBeNull();
-    expect(columnOf({ ...base, status: 'queued' })).toBe('running');
-    const sorted = sortInColumn([
-      { ...base, seq: 2, attention: null },
-      { ...base, seq: 1, attention: { message: '登录过期' } },
-    ]);
+    expect(columnOf(task('done', 2, null))).toBeNull();
+    expect(columnOf(task('queued', 2, null))).toBe('running');
+    const sorted = sortInColumn([task('needs_you', 2, null), task('needs_you', 1, { message: '登录过期' })]);
     expect(sorted[0]?.seq).toBe(1);
   });
 

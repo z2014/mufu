@@ -72,10 +72,10 @@ claude -p --output-format stream-json --verbose --input-format stream-json --per
 
 ## 订阅检查和配置文件
 
-| 工具 | 放行条件 | 不看 |
-| --- | --- | --- |
-| Codex | `account/read` 的 `account.type === "chatgpt"` | `codex login status`、API key |
-| Claude | `system/init` 的 `apiKeySource === "none"` | 环境变量里有没有 key 的名字本身 |
+| 工具   | 放行条件                                       | 不看                            |
+| ------ | ---------------------------------------------- | ------------------------------- |
+| Codex  | `account/read` 的 `account.type === "chatgpt"` | `codex login status`、API key   |
+| Claude | `system/init` 的 `apiKeySource === "none"`     | 环境变量里有没有 key 的名字本身 |
 
 `doctor` 用登录 shell 的 `command -v` 记绝对路径，并只读探测 `config.toml` 的 `api_key`、`auth.json` 的 apikey 模式、Claude settings 的 `apiKeyHelper`。探测结果不包含密钥原文。
 

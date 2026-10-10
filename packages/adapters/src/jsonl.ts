@@ -6,11 +6,17 @@ export type FixtureMarker = {
   note?: string;
 };
 
-export function isFixtureMarker(value: unknown): value is { origin: string; protocol: string } | { _fixture: FixtureMarker } {
+export function isFixtureMarker(
+  value: unknown,
+): value is { origin: string; protocol: string } | { _fixture: FixtureMarker } {
   if (!value || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
   if (row._fixture && typeof row._fixture === 'object') return true;
-  return typeof row.origin === 'string' && typeof row.protocol === 'string' && Object.keys(row).every((key) => ['origin', 'protocol', 'note', 'source'].includes(key));
+  return (
+    typeof row.origin === 'string' &&
+    typeof row.protocol === 'string' &&
+    Object.keys(row).every((key) => ['origin', 'protocol', 'note', 'source'].includes(key))
+  );
 }
 
 export function readJsonl(path: string): unknown[] {

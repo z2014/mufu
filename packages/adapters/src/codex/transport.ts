@@ -3,11 +3,11 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { LineQueue } from '../line-queue.ts';
 
 export type CodexTransport = {
-  send(line: string): void;
   incoming: AsyncIterable<string>;
-  close(): void;
   readonly argv: string[];
   readonly spawnEnv: NodeJS.ProcessEnv;
+  send(line: string): void;
+  close(): void;
 };
 
 export function spawnCodexTransport(argv: string[], spawnEnv: NodeJS.ProcessEnv): CodexTransport {

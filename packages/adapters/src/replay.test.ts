@@ -26,15 +26,15 @@ function assertCodex(path: string): void {
   const messages = fixtureMessages(path);
   expect(messages.length).toBeGreaterThan(0);
   const account = messages.find((row) => {
-    const result = (row as { result?: CodexAccountRead }).result;
-    return result != null && 'account' in result;
+    const { result } = row as { result?: CodexAccountRead };
+    return result !== undefined && result !== null && 'account' in result;
   }) as { result?: CodexAccountRead } | undefined;
   if (account?.result) expect(subscriptionFromCodexAccount(account.result).ok).toBe(true);
   const threadId = threadIdFrom(messages);
   const events = messages
     .filter((row) => typeof (row as { method?: string }).method === 'string')
     .map((row) => normalizeCodexNotification(row as Record<string, unknown>, threadId));
-  expect(events.some((event) => event != null) || messages.length > 0).toBe(true);
+  expect(events.some((event) => event !== null) || messages.length > 0).toBe(true);
 }
 
 function assertClaude(path: string): void {
@@ -42,7 +42,8 @@ function assertClaude(path: string): void {
   expect(marker?.protocol).toBe('claude-agent-sdk');
   const messages = fixtureMessages(path);
   expect(messages.length).toBeGreaterThan(0);
-  const init = messages.find((row) => (row as { type?: string; subtype?: string }).type === 'system') as { apiKeySource?: string } | undefined;
+  const init = messages.find((row) => (row as { type?: string; subtype?: string }).type === 'system') as
+    { apiKeySource?: string } | undefined;
   if (init?.apiKeySource) expect(subscriptionFromClaudeInit(init.apiKeySource).ok).toBe(true);
   const events = messages.map((message) => normalizeClaudeMessage(message));
   expect(events.length).toBe(messages.length);
@@ -60,7 +61,9 @@ describe('handwritten fixtures', () => {
 
 describe('recorded fixtures', () => {
   const required = process.env.MUFU_REQUIRE_RECORDED === '1';
-  const files = existsSync(dir('recorded/')) ? readdirSync(dir('recorded/')).filter((name) => name.endsWith('.jsonl')) : [];
+  const files = existsSync(dir('recorded/'))
+    ? readdirSync(dir('recorded/')).filter((name) => name.endsWith('.jsonl'))
+    : [];
 
   if (!required && files.length === 0) {
     it('还没有录音，路径不算验证过', () => {
