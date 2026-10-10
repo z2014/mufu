@@ -43,6 +43,10 @@ describe('product name', () => {
     expect(PRODUCT_NAME).toBe('mufu');
     expect(LAUNCH_AGENT_LABEL).toBe('com.mufu.daemon');
     expect(launchAgentPlist('/usr/local/bin/mufu')).toContain(LAUNCH_AGENT_LABEL);
+    expect(launchAgentPlist('/usr/local/bin/mufu')).toContain('<string>daemon</string>');
+    expect(launchAgentPlist('/bin/node', ['/abs/daemon.cjs'], { ELECTRON_RUN_AS_NODE: '1' })).toContain(
+      'ELECTRON_RUN_AS_NODE',
+    );
   });
 });
 

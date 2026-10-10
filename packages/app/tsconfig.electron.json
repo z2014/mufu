@@ -9,5 +9,5 @@
     "moduleResolution": "NodeNext",
     "types": ["node"]
   },
-  "include": ["electron"]
+  "include": ["electron/main.ts", "electron/preload.ts", "electron/launch-agent.ts", "electron/plist.ts"]
 }

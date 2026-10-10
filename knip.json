@@ -8,6 +8,7 @@
       "entry": ["electron/main.ts", "electron/preload.ts", "src/global.d.ts"]
     }
   },
+  "ignoreDependencies": ["electron-builder", "@anthropic-ai/claude-agent-sdk"],
   "ignoreIssues": {
     "packages/core/src/product.ts": ["duplicates"],
     "packages/app/src/common/components/ui/**": ["exports", "types"]

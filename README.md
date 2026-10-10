@@ -101,6 +101,34 @@ MUFU_RENDERER_URL=http://127.0.0.1:43123 pnpm --filter @mufu/app exec electron d
 
 不设 `MUFU_RENDERER_URL` 时，壳加载 `packages/app/dist` 里的页面。守护进程仍要单独开着。
 
+## 打成桌面应用
+
+在 Mac 上：
+
+```bash
+pnpm install
+pnpm build:mac
+```
+
+产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。
+
+第一次打开未签名的包，系统会拦住。在访达里右键 `mufu.app`，选「打开」，或者：
+
+```bash
+xattr -dr com.apple.quarantine /path/to/mufu.app
+```
+
+双击之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
+
+卸掉这个 LaunchAgent：
+
+```bash
+launchctl bootout gui/$(id -u)/com.mufu.daemon
+rm ~/Library/LaunchAgents/com.mufu.daemon.plist
+```
+
+开发时用 `pnpm start`，不会安装 LaunchAgent。
+
 ## 在 Mac 上真实验证
 
 需要本机已安装并订阅登录 `codex`、`claude`，以及 `gh`。
