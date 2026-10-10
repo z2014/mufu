@@ -159,29 +159,6 @@ describe('fix bug tracer', () => {
       rmSync(home, { recursive: true, force: true });
     }
   });
-
-  it('超出并发的任务停在排队', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'mufu-home-'));
-    const daemon = await startDaemon({
-      home,
-      socketPath: socketPath(home),
-      wsPort: 0,
-      workflowsDir,
-      fixturePath,
-      agent: 'fake',
-      maxConcurrent: 1,
-    });
-    try {
-      expect((await cliRun(['task', 'create', '--title', '第一件', '--prompt', 'a'], home)).code).toBe(0);
-      expect((await cliRun(['task', 'create', '--title', '第二件', '--prompt', 'b'], home)).code).toBe(0);
-      const ids = await listIds(home);
-      const second = await readTask(home, ids[1]!);
-      expect(second?.status).toBe('queued');
-    } finally {
-      await daemon.close();
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
 });
 
 async function listIds(home: string): Promise<string[]> {

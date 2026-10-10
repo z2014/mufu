@@ -45,7 +45,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       title: str(event.payload, 'title'),
       prompt: str(event.payload, 'prompt'),
       workflow,
-      status: 'queued',
+      status: 'running',
       stageId: first?.id ?? '',
       attention: null,
       pendingGate: null,
@@ -74,7 +74,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       const next = str(payload, 'status') as TaskStatus;
       assertTransition(task.status, next);
       task.status = next;
-      if (next === 'running' || next === 'done' || next === 'queued') task.attention = null;
+      if (next === 'running' || next === 'done') task.attention = null;
       if (next !== 'needs_you' && next !== 'to_review') task.pendingGate = null;
       break;
     }

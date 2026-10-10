@@ -44,7 +44,6 @@ export type DaemonOptions = {
   /** 测试注入。缺的种类仍用真适配器或 fake 夹具。 */
   adapters?: Partial<Record<AgentKind, AgentAdapter>>;
   fixturePath?: string;
-  maxConcurrent?: number;
   codexBin?: string;
   claudeBin?: string;
   /** 测试注入。缺省时 macOS 用钥匙串，其它系统用进程内内存。 */
@@ -79,7 +78,6 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
   };
   const broker = new GateBroker();
   const running = new Set<string>();
-  const maxConcurrent = options.maxConcurrent ?? Number.POSITIVE_INFINITY;
   let doctorReport: DoctorReport | null = null;
   let awake: { stop(): void } | null = null;
   const github = new MergeUnavailable();
@@ -97,10 +95,6 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
   const setStatus = (taskId: string, status: TaskView['status']) => {
     write({ taskId, type: 'task.status', payload: { status } });
   };
-
-  const activeCount = () =>
-    views().filter((task) => task.status === 'running' || task.status === 'needs_you' || task.status === 'to_review')
-      .length;
 
   function failTask(taskId: string, error: unknown, tool: string): void {
     if (error instanceof SubscriptionRefused) {
@@ -171,7 +165,6 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
         awake?.stop();
         awake = null;
       }
-      pump();
     }
   }
 
@@ -430,15 +423,6 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     }
   }
 
-  function pump(): void {
-    for (const task of views()) {
-      if (task.status !== 'queued') continue;
-      if (activeCount() >= maxConcurrent) break;
-      setStatus(task.id, 'running');
-      void runTask(task.id);
-    }
-  }
-
   async function createTask(input: Created): Promise<TaskView> {
     const template = workflows.get(input.workflowId ?? 'fix-bug');
     if (!template) throw new Error(`没有这个流程：${input.workflowId ?? 'fix-bug'}`);
@@ -459,12 +443,8 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     });
     const path = await createWorkspace(input.repoPath, taskId, options.home);
     write({ taskId, type: 'workspace.created', payload: { path } });
-    if (activeCount() >= maxConcurrent) {
-      setStatus(taskId, 'queued');
-    } else {
-      setStatus(taskId, 'running');
-      void runTask(taskId);
-    }
+    setStatus(taskId, 'running');
+    void runTask(taskId);
     const created = one(taskId);
     if (!created) throw new Error('任务没有写进日志');
     return created;

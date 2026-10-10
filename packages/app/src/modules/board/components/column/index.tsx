@@ -20,8 +20,6 @@ export function BoardColumn({
   onDecide?: (task: TaskView, decision: 'approve' | 'reject', comment?: string) => void;
 }) {
   const sorted = sortInColumn(tasks);
-  const queued = column === 'running' ? sorted.filter((task) => task.status === 'queued') : [];
-  const active = column === 'running' ? sorted.filter((task) => task.status !== 'queued') : sorted;
   const meta = copy[column];
   return (
     <section className="bg-muted flex min-h-48 flex-col rounded-lg p-2" aria-label={meta.title}>
@@ -32,17 +30,13 @@ export function BoardColumn({
         <span className="text-muted-foreground ml-auto text-[11px] font-normal">{meta.hint}</span>
       </header>
       {sorted.length === 0 ? <p className="text-muted-foreground px-1.5 text-xs">这一列还没有任务</p> : null}
-      {active.map((task) => (
+      {sorted.map((task) => (
         <TaskCard
           key={task.id}
           task={task}
           pending={pendingGateId === task.pendingGate?.id}
           onDecide={(decision, comment) => onDecide?.(task, decision, comment)}
         />
-      ))}
-      {queued.length > 0 ? <p className="text-muted-foreground px-1.5 py-1.5 text-[11px]">等待开始</p> : null}
-      {queued.map((task) => (
-        <TaskCard key={task.id} task={task} />
       ))}
       {column === 'to_review' ? (
         <p className="text-muted-foreground mt-3 text-center text-[11.5px]">验收后任务完成，离开看板</p>

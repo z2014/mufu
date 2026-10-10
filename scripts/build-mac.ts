@@ -15,7 +15,7 @@ function macBuildUnavailableMessage(platform: NodeJS.Platform): string | null {
   return [
     `pnpm build:mac 只能在 macOS 上打出未签名的 mufu.app。当前是 ${platform}。`,
     '在 Mac 上：pnpm install && pnpm build:mac',
-    '第一次打开未签名的包：右键 mufu.app → 打开，或 xattr -dr com.apple.quarantine /path/to/mufu.app',
+    '本机打出的 mufu.app 没有隔离属性，双击即可。下载的副本第一次要右键打开，或 xattr -dr com.apple.quarantine mufu.app',
   ].join('\n');
 }
 

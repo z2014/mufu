@@ -73,7 +73,6 @@ async function main(): Promise<void> {
       workflowsDir: process.env.MUFU_WORKFLOWS ?? join(here, '../../daemon/workflows'),
       fixturePath: process.env.MUFU_FIXTURE ?? join(here, '../../../fixtures/handwritten/fix-bug.fake.jsonl'),
       agent: envAgent(process.env.MUFU_AGENT),
-      maxConcurrent: process.env.MUFU_MAX_CONCURRENT ? Number(process.env.MUFU_MAX_CONCURRENT) : undefined,
     });
     writeSync(
       1,

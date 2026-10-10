@@ -88,7 +88,7 @@ pnpm daemon
 pnpm dev:app
 ```
 
-浏览器打开 <http://127.0.0.1:43123>。地址用 `127.0.0.1`，不要用 `localhost`（macOS 上 `localhost` 常常先走 IPv6，而这两个服务只绑 IPv4）。三列是「等你 / 进行中 / 待验收」。排队的任务在「进行中」里用虚线卡片。完成的任务离开看板。
+浏览器打开 <http://127.0.0.1:43123>。地址用 `127.0.0.1`，不要用 `localhost`（macOS 上 `localhost` 常常先走 IPv6，而这两个服务只绑 IPv4）。三列是「等你 / 进行中 / 待验收」。完成的任务离开看板。
 
 如果 `pnpm dev:app` 报 43123 已被占用，停掉占着这个端口的进程再开。旧的守护进程如果曾经把 WebSocket 绑在 43123 上，就会把看板端口占住，而且浏览器打不开页面。停掉它，确认环境里没有 `MUFU_WS_PORT=43123`，再按上面两个终端重新开。
 
@@ -112,13 +112,13 @@ pnpm build:mac
 
 产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。
 
-第一次打开未签名的包，系统会拦住。在访达里右键 `mufu.app`，选「打开」，或者：
+在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性，第一次要在访达里右键 `mufu.app`，选「打开」，或者在包所在目录执行：
 
 ```bash
-xattr -dr com.apple.quarantine /path/to/mufu.app
+xattr -dr com.apple.quarantine mufu.app
 ```
 
-双击之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
+打开之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
 
 卸掉这个 LaunchAgent：
 
