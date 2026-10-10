@@ -5,15 +5,21 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import { socketPath, type TaskView } from '@mufu/core';
+import type { GitHub, TaskView } from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
+import { socketPath } from './runtime.ts';
 
 const exec = promisify(execFile);
 const repoRoot = new URL('../../../', import.meta.url).pathname;
 const cli = join(repoRoot, 'packages/cli/src/main.ts');
 const workflowsDir = join(repoRoot, 'packages/daemon/workflows');
 const fixturePath = join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl');
+
+const github: GitHub = {
+  inspect: () => Promise.resolve({ pr: 50, ci: 'passed' }),
+  merge: () => Promise.resolve(),
+};
 
 async function gitRepo(): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'mufu-repo-'));
@@ -100,7 +106,8 @@ describe('fix bug tracer', () => {
       wsPort: 0,
       workflowsDir,
       fixturePath,
-      agent: 'fake',
+      useFixture: true,
+      github,
     });
     try {
       const created = await cliRun(
@@ -121,7 +128,7 @@ describe('fix bug tracer', () => {
       const events = await cliRun(['task', 'events', taskId!], home);
       expect(events.stdout).toContain('task.created');
       expect(events.stdout).toContain('gate.resolved');
-      expect(events.stdout).toContain('agent.session');
+      expect(events.stdout).toContain('merge_succeeded');
       const status = await cliRun(['task', 'status', taskId!], home);
       expect(status.stdout).toContain('done');
     } finally {
@@ -139,7 +146,8 @@ describe('fix bug tracer', () => {
       wsPort: 0,
       workflowsDir,
       fixturePath,
-      agent: 'fake',
+      useFixture: true,
+      github,
     });
     try {
       const created = await cliRun(['task', 'create', '--title', '再看一眼', '--prompt', '先别过'], home);

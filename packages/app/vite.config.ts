@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-import { DEV_PORT } from '../core/src/product.ts';
+import { DEV_PORT } from './src/runtime.ts';
 
 export default defineConfig({
   base: './',

@@ -21,7 +21,7 @@ const taskViewSchema = z.object({
         id: z.string(),
         title: z.string(),
         gate: z.enum(['final', 'stage']).optional(),
-        agent: z.enum(['codex', 'claude', 'fake']).optional(),
+        agent: z.enum(['codex', 'claude']).optional(),
       }),
     ),
   }),
@@ -49,8 +49,13 @@ const taskViewSchema = z.object({
   sessions: z.object({
     codex: z.string().optional(),
     claude: z.string().optional(),
-    fake: z.string().optional(),
   }),
+  ci: z
+    .object({
+      pr: z.number(),
+      state: z.enum(['pending', 'passed', 'failed']),
+    })
+    .nullable(),
   pins: z.array(
     z.object({
       id: z.string(),
@@ -99,14 +104,16 @@ type DoctorView = z.infer<typeof doctorSchema>;
 
 const workflowSchema = z.object({
   id: z.string(),
+  name: z.string(),
   title: z.string(),
+  default: z.boolean(),
   doneWhen: z.enum(['pr_merged', 'final_gate_approved']),
   stages: z.array(
     z.object({
       id: z.string(),
       title: z.string(),
       gate: z.enum(['final', 'stage']).optional(),
-      agent: z.enum(['codex', 'claude', 'fake']).optional(),
+      agent: z.enum(['codex', 'claude']).optional(),
     }),
   ),
 });
@@ -147,7 +154,7 @@ export async function createTask(input: {
 }
 
 export async function listWorkflows(): Promise<WorkflowChoice[]> {
-  return parse(z.array(workflowSchema), await rpc('workflow.list'), '流程');
+  return parse(z.array(workflowSchema), await rpc('workflows.list'), '流程');
 }
 
 export async function resolveGate(gateId: string, decision: 'approve' | 'reject'): Promise<unknown> {

@@ -4,16 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  socketPath,
-  SubscriptionRefused,
-  type AgentAdapter,
-  type AgentSession,
-  type StartSession,
-  type TaskView,
-} from '@mufu/core';
+import { SubscriptionRefused, type AgentAdapter, type AgentSession, type StartSession, type TaskView } from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
+import { socketPath } from './runtime.ts';
 
 const repoRoot = new URL('../../../', import.meta.url).pathname;
 const workflowsDir = join(repoRoot, 'packages/daemon/workflows');
@@ -120,7 +114,7 @@ describe('codex and claude together', () => {
       adapters: { codex: scripted('codex', calls), claude: scripted('claude', calls) },
     });
     try {
-      const workflows = (await rpc(home, 'workflow.list')) as {
+      const workflows = (await rpc(home, 'workflows.list')) as {
         id: string;
         stages: { id: string; agent?: string }[];
       }[];

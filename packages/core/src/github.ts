@@ -1,10 +1,19 @@
-/** 只有守护进程在人点了合并之后才能调用。代理拿不到这个接口。 */
-export interface GitHub {
-  mergePullRequest(input: { repoPath: string; pr: number }): Promise<void>;
+export type CiState = 'pending' | 'passed' | 'failed';
+
+export type MergeFailureReason = 'conflict' | 'ci_failed' | 'environment';
+
+export class MergeFailure extends Error {
+  readonly reason: MergeFailureReason;
+
+  constructor(reason: MergeFailureReason, message: string) {
+    super(message);
+    this.name = 'MergeFailure';
+    this.reason = reason;
+  }
 }
 
-export class MergeUnavailable implements GitHub {
-  async mergePullRequest(_input: { repoPath: string; pr: number }): Promise<void> {
-    throw new Error('这个原型还不会合并。最终门禁通过即完成任务，不会调用 gh。');
-  }
+/** 只有守护进程在人点了验收并合并之后才能调用。代理拿不到这个接口。 */
+export interface GitHub {
+  inspect(repoPath: string): Promise<{ pr: number | null; ci: CiState }>;
+  merge(input: { repoPath: string; pr: number }): Promise<void>;
 }

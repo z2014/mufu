@@ -68,6 +68,19 @@ describe('fold', () => {
     expect(tasks[0]?.status).toBe('needs_you');
   });
 
+  it('CI 和合并失败都从事件折出来', () => {
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({ type: 'ci.reported', payload: { pr: 50, state: 'failed' } }),
+      ev({ type: 'merge_failed', payload: { pr: 50, reason: 'ci_failed', message: 'CI 没过' } }),
+      ev({ type: 'task.status', payload: { status: 'needs_you' } }),
+    ]);
+    expect(tasks[0]?.ci).toEqual({ pr: 50, state: 'failed' });
+    expect(tasks[0]?.attention?.message).toBe('CI 没过');
+    expect(tasks[0]?.attention?.source).toBe('ci_failed');
+    expect(tasks[0]?.attempts).toBe(0);
+  });
+
   it('缺省事件版本是 1，别的版本不折叠', () => {
     expect(eventSchemaVersion(ev({ type: 'task.status', payload: { status: 'running' } }))).toBe(EVENT_SCHEMA_VERSION);
     expect(() =>

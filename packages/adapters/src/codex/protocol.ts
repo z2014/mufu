@@ -1,4 +1,4 @@
-import type { AgentEvent, FailureReason, OperationKind } from '@mufu/core';
+import type { AgentEvent, OperationKind } from '@mufu/core';
 
 export type CodexAccount = {
   type?: string;
@@ -73,7 +73,10 @@ const ENVIRONMENT_CODEX = new Set([
   'ResponseStreamDisconnected',
 ]);
 
-export function classifyCodexError(info: { type?: string; httpStatusCode?: number } | undefined): FailureReason {
+export function classifyCodexError(info: {
+  type?: string;
+  httpStatusCode?: number;
+} | undefined): { kind: 'rate_limit' | 'auth' | 'network' | 'task'; detail: string } {
   const type = info?.type;
   const status = info?.httpStatusCode;
   if (type === 'UsageLimitExceeded' || status === 429) return { kind: 'rate_limit', detail: type ?? '429' };
