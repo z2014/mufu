@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// Vite 加载这份配置时直接读 @mufu/schema 的源文件。
+// Node can't import the package's TS entry at config load, so this path is the @mufu/schema source.
 import { DEV_PORT } from '../schema/src/index.ts';
 
 export default defineConfig({

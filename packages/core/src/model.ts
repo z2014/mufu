@@ -46,6 +46,8 @@ export type PinView = {
   author: string;
   stageId: string;
   read: boolean;
+  /** 钉住时最近的一条消息，点重点时滚到它。 */
+  messageId?: string;
 };
 
 export type ArtifactView = {
@@ -59,7 +61,6 @@ export type MessageView = {
   role: 'user' | 'lead' | 'agent' | 'system';
   author: string;
   text: string;
-  pinReason?: string;
 };
 
 export type TaskView = {
