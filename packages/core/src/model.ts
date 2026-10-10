@@ -20,7 +20,7 @@ export type WorkflowStage = {
 export type Workflow = {
   id: string;
   title: string;
-  doneWhen: 'pr_merged' | 'final_gate_approved';
+  doneWhen: 'pr_merged';
   stages: WorkflowStage[];
 };
 

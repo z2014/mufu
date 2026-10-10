@@ -27,6 +27,7 @@
     "@mufu/adapters": "workspace:*",
     "@mufu/core": "workspace:*",
     "@mufu/daemon": "workspace:*",
+    "@mufu/schema": "workspace:*",
     "@types/node": "^22.15.0",
     "depcheck": "^1.4.7",
     "dependency-cruiser": "^16.10.4",

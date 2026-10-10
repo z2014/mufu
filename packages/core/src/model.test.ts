@@ -12,7 +12,7 @@ function task(status: TaskStatus, seq: number, attention: TaskView['attention'])
     workflow: {
       id: 'fix-bug',
       title: '修 bug',
-      doneWhen: 'final_gate_approved',
+      doneWhen: 'pr_merged',
       stages: [{ id: 'reproduce', title: '复现' }],
     },
     status,

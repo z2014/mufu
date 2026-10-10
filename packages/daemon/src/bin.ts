@@ -2,8 +2,10 @@ import { mkdirSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DEV_PORT } from '@mufu/schema';
+
 import { startDaemon } from './daemon.ts';
-import { dataDir, DEV_PORT, resolveDaemonPort, socketPath } from './runtime.ts';
+import { dataDir, resolveDaemonPort, socketPath } from './runtime.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
