@@ -248,6 +248,7 @@ function Message({ message, pins }: { message: TaskView['messages'][number]; pin
     return (
       <p id={`msg-${message.id}`} className="text-muted-foreground mb-4 text-xs">
         {message.text}
+        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
       </p>
     );
   }
@@ -258,12 +259,11 @@ function Message({ message, pins }: { message: TaskView['messages'][number]; pin
       </div>
     );
   }
-  const pinned = Boolean(message.pinReason || pin);
   return (
-    <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pinned && 'border-border border-l-2 pl-3')}>
+    <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}>
       <p className="text-muted-foreground mb-1 text-xs">
         {message.author}
-        {message.pinReason || pin ? <em className="ml-2 font-normal">📌 {message.pinReason ?? pin?.reason}</em> : null}
+        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
     </div>

@@ -13,7 +13,6 @@ type FakeLine = {
   author?: string;
   text?: string;
   message?: string;
-  reason?: string;
   title?: string;
   detail?: string;
   requestId?: string;
@@ -129,8 +128,6 @@ function toEvent(line: FakeLine): AgentEvent | null {
       return { type: 'system', text: line.text ?? '' };
     case 'stage':
       return { type: 'stage', stageId: line.stageId ?? '' };
-    case 'pin':
-      return { type: 'pin', message: line.message ?? '', reason: line.reason ?? '', author: line.author ?? 'agent' };
     case 'artifact':
       return { type: 'artifact', title: line.title ?? '', detail: line.detail ?? '' };
     case 'approval_request':

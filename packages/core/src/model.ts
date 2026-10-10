@@ -46,7 +46,7 @@ export type PinView = {
   author: string;
   stageId: string;
   read: boolean;
-  /** 钉住时最近的一条代理消息，点重点时滚到它。 */
+  /** 钉住时最近的一条非用户消息，点重点时滚到它。 */
   messageId?: string;
 };
 
@@ -61,7 +61,6 @@ export type MessageView = {
   role: 'user' | 'lead' | 'agent' | 'system';
   author: string;
   text: string;
-  pinReason?: string;
 };
 
 export type TaskView = {

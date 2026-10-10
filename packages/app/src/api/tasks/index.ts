@@ -80,7 +80,6 @@ const taskViewSchema = z.object({
       role: z.enum(['user', 'lead', 'agent', 'system']),
       author: z.string(),
       text: z.string(),
-      pinReason: z.string().optional(),
     }),
   ),
   attempts: z.number(),

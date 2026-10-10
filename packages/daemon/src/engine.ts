@@ -9,6 +9,8 @@ import {
   countsAsAttempt,
   foldTask,
   foldTasks,
+  LEAD_PIN_AUTHOR,
+  STAGE_DONE_PIN,
   leadIntro,
   type AgentAdapter,
   type AgentEvent,
@@ -76,6 +78,28 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
   const setStatus = (taskId: string, status: TaskView['status']) => {
     log.append({ taskId, type: 'task.status', payload: { status } });
   };
+
+  /** 阶段 1 的桩：模板里每一个已经完成的阶段钉一句「阶段完成」。同一阶段只钉一次。 */
+  function pinCompletedStage(taskId: string, stageId: string): void {
+    const task = one(taskId);
+    if (!task || stageId.length === 0) return;
+    if (!task.workflow.stages.some((stage) => stage.id === stageId)) return;
+    const onStage = task.pins.filter((pin) => pin.stageId === stageId);
+    if (onStage.some((pin) => pin.author === LEAD_PIN_AUTHOR) || onStage.length >= MAX_PINS_PER_STAGE) return;
+    const messageId = [...task.messages].reverse().find((message) => message.role !== 'user')?.id;
+    log.append({
+      taskId,
+      type: 'pin.added',
+      payload: {
+        pinId: randomUUID(),
+        message: STAGE_DONE_PIN,
+        reason: STAGE_DONE_PIN,
+        author: LEAD_PIN_AUTHOR,
+        stageId,
+        ...(messageId ? { messageId } : {}),
+      },
+    });
+  }
 
   function failTask(taskId: string, error: unknown, tool: string): void {
     if (error instanceof SubscriptionRefused) {
@@ -233,7 +257,10 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     });
     const outcome = await consume(taskId, session);
     const latest = one(taskId);
-    if (outcome === 'ok' && latest?.status === 'running') await completeByMerge(taskId);
+    if (outcome === 'ok' && latest?.status === 'running') {
+      pinCompletedStage(taskId, latest.stageId);
+      await completeByMerge(taskId);
+    }
   }
 
   async function runStages(taskId: string): Promise<void> {
@@ -293,6 +320,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       }
       const after = one(taskId);
       if (!after || after.status === 'needs_you' || after.status === 'done') return;
+      pinCompletedStage(taskId, after.stageId);
       const index = after.workflow.stages.findIndex((item) => item.id === after.stageId);
       const next = after.workflow.stages[index + 1];
       if (!next) {
@@ -379,34 +407,16 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     const current = one(taskId);
     if (!current) return;
     if (event.type === 'stage') {
+      if (event.stageId !== current.stageId) pinCompletedStage(taskId, current.stageId);
       log.append({ taskId, type: 'stage.entered', payload: { stageId: event.stageId } });
     } else if (event.type === 'message') {
       log.append({
         taskId,
         type: 'agent.message',
-        payload: { role: 'agent', author: event.author, text: event.text, pinReason: event.pinReason },
+        payload: { role: 'agent', author: event.author, text: event.text },
       });
     } else if (event.type === 'system') {
       log.append({ taskId, type: 'agent.message', payload: { role: 'system', author: '系统', text: event.text } });
-    } else if (event.type === 'pin') {
-      const count = current.pins.filter((pin) => pin.stageId === current.stageId).length;
-      if (count < MAX_PINS_PER_STAGE) {
-        const messageId = [...current.messages]
-          .reverse()
-          .find((message) => message.role === 'agent' || message.role === 'lead')?.id;
-        log.append({
-          taskId,
-          type: 'pin.added',
-          payload: {
-            pinId: randomUUID(),
-            message: event.message,
-            reason: event.reason,
-            author: event.author,
-            stageId: current.stageId,
-            ...(messageId ? { messageId } : {}),
-          },
-        });
-      }
     } else if (event.type === 'artifact') {
       log.append({
         taskId,

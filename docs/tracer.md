@@ -14,7 +14,7 @@
 
 - 这台云主机没有登录的 `codex` / `claude`。端到端测试在 `MUFU_AGENT=fake` 下回放 `fixtures/handwritten/fix-bug.fake.jsonl`。
 - 任务完成等于 PR 合并成功。测试注入 gh。代理拿不到合并能力。两份模板的 `done_when` 都是 `pr_merged`。
-- 协调 Agent 是固定文案。
+- 协调 Agent 是固定文案：开场白，加上每个完成阶段一条「阶段完成」。
 - 手写的 Codex / Claude JSONL 来自官方文档和下面的开源实现，不是录音。
 
 暂不验证：
