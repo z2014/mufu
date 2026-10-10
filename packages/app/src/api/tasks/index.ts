@@ -15,7 +15,7 @@ const taskViewSchema = z.object({
   workflow: z.object({
     id: z.string(),
     title: z.string(),
-    doneWhen: z.enum(['pr_merged', 'final_gate_approved']),
+    doneWhen: z.enum(['pr_merged']),
     stages: z.array(
       z.object({
         id: z.string(),
@@ -93,7 +93,7 @@ const workflowSchema = z.object({
   name: z.string(),
   title: z.string(),
   default: z.boolean(),
-  doneWhen: z.enum(['pr_merged', 'final_gate_approved']),
+  doneWhen: z.enum(['pr_merged']),
   stages: z.array(
     z.object({
       id: z.string(),

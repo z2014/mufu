@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { DAEMON_WS_PORT, DEV_PORT } from '@mufu/schema';
+
 import { startDaemon } from './daemon.ts';
-import { DAEMON_WS_PORT, DEV_PORT } from './runtime.ts';
 
 const repoRoot = new URL('../../../', import.meta.url).pathname;
 
@@ -108,12 +109,6 @@ describe('board and daemon ports', () => {
         expect(source, path).not.toContain(literal);
       }
     }
-    const daemonRuntime = text('packages/daemon/src/runtime.ts');
-    const appRuntime = text('packages/app/src/runtime.ts');
-    expect(daemonRuntime).toContain(String(DEV_PORT));
-    expect(daemonRuntime).toContain(String(DAEMON_WS_PORT));
-    expect(appRuntime).toContain(String(DEV_PORT));
-    expect(appRuntime).toContain(String(DAEMON_WS_PORT));
     expect(text('packages/core/src/product.ts')).not.toContain(String(DEV_PORT));
     expect(text('packages/core/src/product.ts')).not.toContain(String(DAEMON_WS_PORT));
     const readme = text('README.md');

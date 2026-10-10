@@ -2,12 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { PRODUCT_NAME } from '@mufu/core';
-
-/** 浏览器看板。只有 `pnpm dev:app`（Vite）听这个端口。 */
-export const DEV_PORT = 43123;
-
-/** 守护进程的 WebSocket。不提供页面。 */
-export const DAEMON_WS_PORT = 43124;
+import { DAEMON_WS_PORT, DEV_PORT } from '@mufu/schema';
 
 /**
  * 守护进程实际要绑的端口。环境变量可以改它，但不能改成看板端口。
