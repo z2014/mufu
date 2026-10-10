@@ -1,9 +1,11 @@
 import { columnOf, type Column, type TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 
-import { createTask, DaemonError, fetchDoctor, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
+import { connectionKeys, fetchDoctor } from '@/api/connections';
+import { createTask, DaemonError, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
+import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { Button } from '@/common/components/ui/button';
 import { cn } from '@/common/utils';
@@ -11,11 +13,6 @@ import { BoardColumn } from '@/modules/board/components/column';
 import { usePreferences } from '@/store/preferences';
 
 const columns: Column[] = ['needs_you', 'running', 'to_review'];
-
-const nav = [
-  { label: '新任务', icon: '＋', action: 'create' as const },
-  { label: '任务', icon: '▦', action: 'board' as const },
-];
 
 function group(tasks: TaskView[]): Record<Column, TaskView[]> {
   return {
@@ -29,7 +26,7 @@ export function Component() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const tasks = useQuery({ queryKey: taskKeys.list, queryFn: listTasks, refetchInterval: 1500 });
-  const doctor = useQuery({ queryKey: taskKeys.doctor, queryFn: fetchDoctor, retry: false });
+  const doctor = useQuery({ queryKey: connectionKeys.doctor, queryFn: fetchDoctor, retry: false });
   const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
@@ -54,38 +51,16 @@ export function Component() {
   const waiting = (grouped?.needs_you.length ?? 0) + (grouped?.to_review.length ?? 0);
 
   return (
-    <div className="bg-background flex h-dvh flex-col md:flex-row">
-      <nav className="bg-muted flex gap-1 overflow-x-auto border-b px-2 py-2 md:w-44 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:px-2 md:py-2.5">
-        {nav.map((item) =>
-          item.action === 'board' ? (
-            <Link
-              key={item.label}
-              to="/"
-              className="bg-accent flex items-center gap-2.5 rounded-md px-2.5 py-1.5 font-medium"
-            >
-              <span className="text-muted-foreground w-3.5 text-center">{item.icon}</span>
-              {item.label}
-              <span className="text-muted-foreground ml-auto text-[11px]">{tasks.data?.length ?? 0}</span>
-            </Link>
-          ) : (
-            <button
-              key={item.label}
-              type="button"
-              className="text-foreground flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left"
-              onClick={() => {
-                if (item.action === 'create') setOpen(true);
-              }}
-            >
-              <span className="text-muted-foreground w-3.5 text-center">{item.icon}</span>
-              {item.label}
-            </button>
-          ),
-        )}
-        <p className="text-muted-foreground mt-auto hidden px-2 pt-6 text-[11px] md:block">
+    <AppShell
+      active="board"
+      onNewTask={() => setOpen(true)}
+      footer={
+        <p className="text-muted-foreground hidden px-2.5 pt-3 text-[11px] md:block">
           Codex <Dot on={doctor.data?.tools.find((tool) => tool.name === 'codex')?.installed} /> Claude{' '}
           <Dot on={doctor.data?.tools.find((tool) => tool.name === 'claude')?.installed} />
         </p>
-      </nav>
+      }
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="text-muted-foreground flex h-12 items-center gap-3 border-b px-4">
           <span>全部项目</span>
@@ -136,7 +111,7 @@ export function Component() {
           create.mutate(value);
         }}
       />
-    </div>
+    </AppShell>
   );
 }
 

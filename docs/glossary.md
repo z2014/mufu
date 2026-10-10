@@ -21,5 +21,7 @@
 | 手写夹具   | 在这台没有登录账号的机器上，按文档写成的 JSONL。不是录音。                                                    | `fixtures/handwritten`，`origin: handwritten` | 录制夹具                 |
 | 录制夹具   | 在用户的 Mac 上由 `pnpm verify:mac` 写下的原始事件流。路径只有在对着这些文件的测试通过之后才算真的验证过。    | `fixtures/recorded`，`origin: recorded`       | 手写夹具                 |
 | 事件版本   | 追加日志里每条事件的形状版本。现在是 1。读到不认识的版本就停，不猜测。缺省字段当成 1。                        | `schemaVersion`，`EVENT_SCHEMA_VERSION`       | 产品版本 `PRODUCT_VERSION` |
+| 连接       | 本机 codex、claude、gh 是否装好、是否登录、是否订阅。设置页只显示 ✓ 或 ✗ 和修复提示。                         | `doctor`，`CheckItem`                         | 钥匙                     |
+| 钥匙       | 人自己保存的密钥。阶段 1 只有 OpenRouter，进钥匙串，界面只显示有没有。适配器不读。                            | `SecretStore`，`OPENROUTER_ACCOUNT`           | Codex / Claude 的登录    |
 
 产品名只有一处常量：`PRODUCT_NAME`（`packages/core`）。配置目录、命令行、LaunchAgent 标签、Application Support 目录和钥匙串服务都从它派生。

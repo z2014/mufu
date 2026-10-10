@@ -13,6 +13,7 @@ import {
   MAX_ATTEMPTS,
   MAX_PINS_PER_STAGE,
   MergeUnavailable,
+  OPENROUTER_ACCOUNT,
   SubscriptionRefused,
   foldTask,
   foldTasks,
@@ -21,6 +22,7 @@ import {
   type AgentEvent,
   type AgentKind,
   type AgentSession,
+  type SecretStore,
   type TaskView,
   type Workflow,
 } from '@mufu/core';
@@ -29,6 +31,7 @@ import { workflowSchema, type RpcRequest, type RpcResponse } from '@mufu/schema'
 import { GateBroker, type Decision } from './broker.ts';
 import { doctor, type DoctorReport } from './doctor.ts';
 import { holdAwake } from './sleep.ts';
+import { assertOpenRouterAccount, createDefaultSecretStore } from './secrets.ts';
 import { SqliteEventLog } from './store.ts';
 import { createWorkspace } from './workspace.ts';
 
@@ -44,6 +47,8 @@ export type DaemonOptions = {
   maxConcurrent?: number;
   codexBin?: string;
   claudeBin?: string;
+  /** 测试注入。缺省时 macOS 用钥匙串，其它系统用进程内内存。 */
+  secrets?: SecretStore;
 };
 
 export type RunningDaemon = {
@@ -75,6 +80,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
   const fixtureMode = configuredAgent === 'fake';
   const adapters = buildAdapters(options);
   const live = new Map<string, AgentSession>();
+  const secrets = options.secrets ?? createDefaultSecretStore();
 
   const views = () => foldTasks(log.readAll());
   const one = (taskId: string) => foldTask(log.readAll(), taskId);
@@ -422,6 +428,20 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
       case 'doctor':
         doctorReport ??= await doctor();
         return doctorReport;
+      case 'secret.status':
+        return { openrouter: await secrets.has(OPENROUTER_ACCOUNT) };
+      case 'secret.set': {
+        const account = assertOpenRouterAccount(String(params.account ?? ''));
+        const value = String(params.value ?? '');
+        if (value.trim().length === 0) throw new Error('密钥是空的');
+        await secrets.set(account, value);
+        return { account, set: true };
+      }
+      case 'secret.remove': {
+        const account = assertOpenRouterAccount(String(params.account ?? ''));
+        await secrets.remove(account);
+        return { account, set: false };
+      }
       case 'task.create':
         return createTask({
           title: String(params.title ?? ''),
@@ -536,9 +556,11 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     });
   });
 
-  void doctor().then((report) => {
-    doctorReport = report;
-  });
+  void doctor()
+    .then((report) => {
+      doctorReport = report;
+    })
+    .catch(() => undefined);
 
   return {
     socketPath: options.socketPath,

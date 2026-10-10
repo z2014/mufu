@@ -49,3 +49,5 @@ export { MergeUnavailable } from './github.ts';
 export type { GitHub } from './github.ts';
 export { classifyCodexQuotaWindow } from './quota.ts';
 export { launchAgentPlist } from './launchd.ts';
+export { OPENROUTER_ACCOUNT } from './secret.ts';
+export type { SecretStore } from './secret.ts';

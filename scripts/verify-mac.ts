@@ -148,14 +148,27 @@ async function main(): Promise<void> {
   }
 
   const before = stampAll();
-  const report = await doctor(homedir());
+  const report = await doctor({ userHome: homedir() });
   for (const tool of report.tools) {
     rows.push({
       name: `${tool.name} 路径`,
       ok: tool.installed && Boolean(tool.path?.startsWith('/')),
       detail: tool.path ?? '登录 shell 的 command -v 没有找到',
     });
-    rows.push({ name: `${tool.name} 登录提示`, ok: tool.installed, detail: tool.loginHint });
+    for (const item of tool.items) {
+      rows.push({
+        name: `${tool.name} ${item.name}`,
+        ok: item.ok,
+        detail: item.fix ? `${item.detail}（${item.fix}）` : item.detail,
+      });
+    }
+  }
+  if (report.ignoredEnvKeys.length > 0) {
+    rows.push({
+      name: '环境里的 key',
+      ok: true,
+      detail: `已检测到，已忽略，使用订阅：${report.ignoredEnvKeys.join('、')}`,
+    });
   }
   rows.push({
     name: '配置文件里的 key',

@@ -51,6 +51,13 @@ module.exports = {
       to: { path: '^packages/app/src/modules/(?!board/)' },
     },
     {
+      name: 'settings-not-other-modules',
+      comment: '设置页不引用看板或任务页',
+      severity: 'error',
+      from: { path: '^packages/app/src/modules/settings/' },
+      to: { path: '^packages/app/src/modules/(?!settings/)' },
+    },
+    {
       name: 'task-not-board',
       comment: '任务页模块不引用看板模块',
       severity: 'error',

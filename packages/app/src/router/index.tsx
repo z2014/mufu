@@ -13,4 +13,9 @@ export const router = createHashRouter([
     lazy: () => import('@/modules/task'),
     errorElement: <RouteError />,
   },
+  {
+    path: '/settings',
+    lazy: () => import('@/modules/settings'),
+    errorElement: <RouteError />,
+  },
 ]);

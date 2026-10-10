@@ -14,17 +14,13 @@ import {
   resolveGate,
   taskKeys,
 } from '@/api/tasks';
+import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { cn } from '@/common/utils';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
 import { GateCard } from '@/modules/task/components/gate-card';
 import { PinStrip } from '@/modules/task/components/pin-strip';
 import { usePreferences } from '@/store/preferences';
-
-const nav = [
-  { label: '新任务', icon: '＋', action: 'create' as const },
-  { label: '任务', icon: '▦', action: 'board' as const },
-];
 
 export function Component() {
   const { taskId = '' } = useParams();
@@ -88,32 +84,22 @@ export function Component() {
   const running = (list.data ?? []).filter((item) => columnOf(item) === 'running');
 
   return (
-    <div className="bg-background flex h-dvh flex-col md:flex-row">
-      <nav className="bg-muted flex max-h-52 flex-col overflow-auto border-b px-3 py-3 md:max-h-none md:w-56 md:border-b-0 md:border-r md:py-4">
-        <Link to="/" className="px-2.5 pb-3 text-lg font-bold">
-          工作台
-        </Link>
-        {nav.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left"
-            onClick={() => {
-              if (item.action === 'board') void navigate('/');
-              if (item.action === 'create') setOpen(true);
-            }}
-          >
-            <span className="text-muted-foreground w-4 text-center">{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
-        <TaskGroup title="需要你" tasks={needsYou} currentId={taskId} />
-        <TaskGroup title="进行中" tasks={running} currentId={taskId} muted />
-        <p className="mt-auto flex items-center gap-2.5 px-2.5 pt-4">
+    <AppShell
+      active="task"
+      onNewTask={() => setOpen(true)}
+      menu={
+        <>
+          <TaskGroup title="需要你" tasks={needsYou} currentId={taskId} />
+          <TaskGroup title="进行中" tasks={running} currentId={taskId} muted />
+        </>
+      }
+      footer={
+        <p className="flex items-center gap-2.5 px-2.5 pt-4">
           <span className="bg-accent inline-flex size-7 items-center justify-center rounded-full text-xs">Z</span>
           chunlin
         </p>
-      </nav>
+      }
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           {task.isPending ? <p className="text-muted-foreground p-8 text-sm">正在读取任务</p> : null}
@@ -236,7 +222,7 @@ export function Component() {
         errorMessage={create.error instanceof Error ? create.error.message : null}
         onSubmit={(value) => create.mutate(value)}
       />
-    </div>
+    </AppShell>
   );
 }
 

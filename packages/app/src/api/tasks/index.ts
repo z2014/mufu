@@ -83,20 +83,6 @@ const taskViewSchema = z.object({
   updatedAt: z.string(),
 });
 
-const doctorSchema = z.object({
-  tools: z.array(
-    z.object({
-      name: z.enum(['codex', 'claude', 'gh']),
-      path: z.string().nullable(),
-      installed: z.boolean(),
-      loginHint: z.string(),
-    }),
-  ),
-  note: z.string(),
-});
-
-type DoctorView = z.infer<typeof doctorSchema>;
-
 const workflowSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -116,7 +102,6 @@ type WorkflowChoice = z.infer<typeof workflowSchema>;
 export const taskKeys = {
   list: ['tasks', 'list'] as const,
   detail: (taskId: string) => ['tasks', taskId] as const,
-  doctor: ['doctor'] as const,
   workflows: ['workflows'] as const,
 };
 
@@ -164,8 +149,4 @@ export async function addNote(taskId: string, text: string): Promise<TaskView | 
   const result = await rpc('task.note', { taskId, text });
   if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
-}
-
-export async function fetchDoctor(): Promise<DoctorView> {
-  return parse(doctorSchema, await rpc('doctor'), '检查');
 }
