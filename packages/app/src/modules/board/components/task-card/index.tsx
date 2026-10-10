@@ -20,7 +20,6 @@ function summary(task: TaskView): string {
 }
 
 function statusText(task: TaskView): string {
-  if (task.status === 'queued') return '排队';
   if (task.attention) return '出问题了';
   if (task.status === 'to_review') return '等你验收';
   if (task.pendingGate) return '等你决定';
@@ -35,7 +34,6 @@ function actionLabel(task: TaskView): string | null {
 }
 
 export function TaskCard({ task }: { task: TaskView }) {
-  const queued = task.status === 'queued';
   const stageIndex = Math.max(
     0,
     task.workflow.stages.findIndex((stage) => stage.id === task.stageId),
@@ -43,11 +41,7 @@ export function TaskCard({ task }: { task: TaskView }) {
   const label = actionLabel(task);
   return (
     <article
-      className={cn(
-        'bg-card mb-2 rounded-lg border px-3 py-2.5 shadow-sm',
-        queued && 'bg-muted text-muted-foreground border-dashed',
-        task.attention && 'border-foreground',
-      )}
+      className={cn('bg-card mb-2 rounded-lg border px-3 py-2.5 shadow-sm', task.attention && 'border-foreground')}
     >
       <div className="text-muted-foreground flex items-center gap-1.5 text-[11.5px]">
         <span>#{task.seq}</span>
@@ -56,7 +50,7 @@ export function TaskCard({ task }: { task: TaskView }) {
         </span>
         <span className="ml-1 tracking-widest" aria-hidden>
           {task.workflow.stages.map((stage, index) => (
-            <span key={stage.id} className={index <= stageIndex && !queued ? 'text-foreground' : 'text-border'}>
+            <span key={stage.id} className={index <= stageIndex ? 'text-foreground' : 'text-border'}>
               ●
             </span>
           ))}
@@ -82,8 +76,7 @@ export function TaskCard({ task }: { task: TaskView }) {
       <div className="text-muted-foreground mt-2.5 flex items-center gap-2 text-[11.5px]">
         <span
           className={cn(
-            'text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]',
-            queued ? 'bg-border' : 'bg-primary',
+            'bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]',
           )}
         >
           {agentMark(task.agentKind)}
