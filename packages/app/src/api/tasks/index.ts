@@ -5,7 +5,7 @@ import { DaemonError, rpc } from '@/api/client';
 
 export { DaemonError };
 
-const taskStatusSchema = z.enum(['queued', 'running', 'needs_you', 'to_review', 'done']);
+const taskStatusSchema = z.enum(['running', 'needs_you', 'to_review', 'done']);
 
 const taskViewSchema = z.object({
   id: z.string(),

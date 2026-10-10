@@ -71,7 +71,7 @@ describe('quota windows', () => {
 describe('columns', () => {
   it('完成的任务离开看板，带 ! 的排在前面', () => {
     expect(columnOf(task('done', 2, null))).toBeNull();
-    expect(columnOf(task('queued', 2, null))).toBe('running');
+    expect(columnOf(task('running', 2, null))).toBe('running');
     const sorted = sortInColumn([task('needs_you', 2, null), task('needs_you', 1, { message: '登录过期' })]);
     expect(sorted[0]?.seq).toBe(1);
   });

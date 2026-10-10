@@ -10,8 +10,6 @@ const copy: Record<Column, { title: string; hint: string }> = {
 
 export function BoardColumn({ column, tasks }: { column: Column; tasks: TaskView[] }) {
   const sorted = sortInColumn(tasks);
-  const queued = column === 'running' ? sorted.filter((task) => task.status === 'queued') : [];
-  const active = column === 'running' ? sorted.filter((task) => task.status !== 'queued') : sorted;
   const meta = copy[column];
   return (
     <section className="bg-muted flex min-h-48 flex-col rounded-lg p-2" aria-label={meta.title}>
@@ -22,11 +20,7 @@ export function BoardColumn({ column, tasks }: { column: Column; tasks: TaskView
         <span className="text-muted-foreground ml-auto text-[11px] font-normal">{meta.hint}</span>
       </header>
       {sorted.length === 0 ? <p className="text-muted-foreground px-1.5 text-xs">这一列还没有任务</p> : null}
-      {active.map((task) => (
-        <TaskCard key={task.id} task={task} />
-      ))}
-      {queued.length > 0 ? <p className="text-muted-foreground px-1.5 py-1.5 text-[11px]">等待开始</p> : null}
-      {queued.map((task) => (
+      {sorted.map((task) => (
         <TaskCard key={task.id} task={task} />
       ))}
       {column === 'to_review' ? (
