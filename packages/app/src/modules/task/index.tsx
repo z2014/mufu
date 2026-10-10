@@ -173,7 +173,7 @@ export function Component() {
               <PinStrip pins={current.pins} onReadAll={() => pins.mutate()} />
               <div className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-14">
                 {current.messages.map((message) => (
-                  <Message key={message.id} message={message} />
+                  <Message key={message.id} message={message} pins={current.pins} />
                 ))}
               </div>
               {current.pendingGate ? (
@@ -289,9 +289,15 @@ function TaskGroup({
   );
 }
 
-function Message({ message }: { message: TaskView['messages'][number] }) {
+function Message({ message, pins }: { message: TaskView['messages'][number]; pins: TaskView['pins'] }) {
+  const pin = pins.find((item) => item.messageId === message.id);
   if (message.role === 'system') {
-    return <p className="text-muted-foreground mb-4 text-xs">{message.text}</p>;
+    return (
+      <p className="text-muted-foreground mb-4 text-xs">
+        {message.text}
+        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
+      </p>
+    );
   }
   if (message.role === 'user') {
     return (
@@ -301,10 +307,10 @@ function Message({ message }: { message: TaskView['messages'][number] }) {
     );
   }
   return (
-    <div className={cn('mb-5 max-w-xl', message.pinReason && 'border-border border-l-2 pl-3')}>
+    <div className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}>
       <p className="text-muted-foreground mb-1 text-xs">
         {message.author}
-        {message.pinReason ? <em className="ml-2 font-normal">📌 {message.pinReason}</em> : null}
+        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
     </div>

@@ -25,7 +25,7 @@ export type {
   WorkflowStage,
 } from './model.ts';
 export { eventSchemaVersion, foldTask, foldTasks } from './fold.ts';
-export { SubscriptionRefused, leadIntro } from './agent.ts';
+export { LEAD_PIN_AUTHOR, STAGE_DONE_PIN, SubscriptionRefused, leadIntro } from './agent.ts';
 export type {
   AgentAdapter,
   AgentEvent,

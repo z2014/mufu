@@ -1,5 +1,6 @@
 import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
+import { LEAD_PIN_AUTHOR } from './agent.ts';
 import { assertTransition, type DomainEvent, type TaskStatus, type TaskView, type Workflow } from './model.ts';
 
 export function eventSchemaVersion(event: DomainEvent): number {
@@ -107,7 +108,6 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
         role: payload.role === 'lead' || payload.role === 'system' || payload.role === 'user' ? payload.role : 'agent',
         author: str(payload, 'author'),
         text: str(payload, 'text'),
-        pinReason: typeof payload.pinReason === 'string' ? payload.pinReason : undefined,
       });
       break;
     case 'gate.opened':
@@ -123,16 +123,19 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
     case 'gate.resolved':
       if (task.pendingGate?.id === payload.gateId) task.pendingGate = null;
       break;
-    case 'pin.added':
+    case 'pin.added': {
+      if (payload.author !== LEAD_PIN_AUTHOR) break;
       task.pins.push({
         id: str(payload, 'pinId'),
         message: str(payload, 'message'),
         reason: str(payload, 'reason'),
-        author: str(payload, 'author'),
+        author: LEAD_PIN_AUTHOR,
         stageId: str(payload, 'stageId'),
         read: false,
+        messageId: typeof payload.messageId === 'string' ? payload.messageId : undefined,
       });
       break;
+    }
     case 'pin.read':
       for (const pin of task.pins) {
         if (payload.pinId === undefined || pin.id === payload.pinId) pin.read = true;

@@ -120,6 +120,10 @@ describe('fix bug tracer', () => {
       const waiting = await waitFor(home, taskId!, (task) => task.pendingGate !== null);
       expect(waiting.status).toBe('to_review');
       expect(waiting.pendingGate?.summary).toContain('验收');
+      expect(waiting.pins.map((pin) => pin.stageId)).toEqual(['reproduce', 'fix', 'pr']);
+      expect(
+        waiting.pins.every((pin) => pin.message === '阶段完成' && pin.reason === '阶段完成' && pin.author === 'lead'),
+      ).toBe(true);
       const approved = await cliRun(['gate', 'approve', waiting.pendingGate!.id], home);
       expect(approved.code, approved.stderr).toBe(0);
       const done = await waitFor(home, taskId!, (task) => task.status === 'done');
@@ -158,6 +162,7 @@ describe('fix bug tracer', () => {
       expect(rejected.code, rejected.stderr).toBe(0);
       const after = await waitFor(home, taskId, (task) => task.pendingGate === null && task.status === 'needs_you');
       expect(after.status).toBe('needs_you');
+      expect(after.pins.map((pin) => pin.stageId)).toEqual(['reproduce', 'fix', 'pr']);
     } finally {
       await daemon.close();
       rmSync(home, { recursive: true, force: true });

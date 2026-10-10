@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { MergeFailure, type AgentAdapter, type AgentSession, type GitHub, type TaskView } from '@mufu/core';
+import {
+  LEAD_PIN_AUTHOR,
+  MergeFailure,
+  STAGE_DONE_PIN,
+  type AgentAdapter,
+  type AgentSession,
+  type GitHub,
+  type TaskView,
+} from '@mufu/core';
 
 import { createTaskEngine, type TaskEngine } from './engine.ts';
 import { SqliteEventLog } from './store.ts';
@@ -94,10 +102,23 @@ describe('merge completes the task', () => {
     const { engine, gh, close } = await boot('ok');
     try {
       const created = await engine.createTask({ title: '合并', prompt: '过' });
-      const waiting = await until(engine, created.id, (task) => task.status === 'to_review' && task.ci?.state === 'passed');
+      const waiting = await until(
+        engine,
+        created.id,
+        (task) => task.status === 'to_review' && task.ci?.state === 'passed',
+      );
       expect(waiting.pendingGate).not.toBeNull();
+      expect(waiting.pins).toEqual([]);
       engine.resolveGate(waiting.pendingGate!.id, 'approve');
       const done = await until(engine, created.id, (task) => task.status === 'done');
+      expect(
+        done.pins.map((pin) => ({
+          message: pin.message,
+          reason: pin.reason,
+          author: pin.author,
+          stageId: pin.stageId,
+        })),
+      ).toEqual([{ message: STAGE_DONE_PIN, reason: STAGE_DONE_PIN, author: LEAD_PIN_AUTHOR, stageId: 'accept' }]);
       expect(done.attempts).toBe(0);
       expect(gh.merges).toBe(1);
       expect(engine.events(created.id).map((event) => event.type)).toContain('merge_succeeded');
@@ -133,9 +154,11 @@ describe('merge completes the task', () => {
       const stuck = await until(engine, created.id, (task) => task.status === 'needs_you');
       expect(stuck.attempts).toBe(1);
       expect(gh.merges).toBe(0);
-      expect(engine.events(created.id).some((event) => event.type === 'merge_failed' && event.payload.reason === 'ci_failed')).toBe(
-        true,
-      );
+      expect(
+        engine
+          .events(created.id)
+          .some((event) => event.type === 'merge_failed' && event.payload.reason === 'ci_failed'),
+      ).toBe(true);
     } finally {
       close();
     }
