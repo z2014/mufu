@@ -6,6 +6,8 @@ export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export const workflowSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
+  /** 多个文件同时为 true 时，加载直接失败。都不写时用目录里排第一的文件。 */
+  default: z.boolean().optional(),
   done_when: z.enum(['pr_merged', 'final_gate_approved']),
   stages: z
     .array(
@@ -13,7 +15,7 @@ export const workflowSchema = z.object({
         id: z.string().min(1),
         title: z.string().min(1),
         gate: z.enum(['final', 'stage']).optional(),
-        agent: z.enum(['codex', 'claude', 'fake']).optional(),
+        agent: z.enum(['codex', 'claude']).optional(),
       }),
     )
     .min(1),

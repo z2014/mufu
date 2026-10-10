@@ -2,9 +2,8 @@ import { mkdirSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dataDir, DEV_PORT, resolveDaemonPort, socketPath } from '@mufu/core';
-
 import { startDaemon } from './daemon.ts';
+import { dataDir, DEV_PORT, resolveDaemonPort, socketPath } from './runtime.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -19,11 +18,12 @@ const daemon = await startDaemon({
   wsPort: resolveDaemonPort(process.env),
   workflowsDir,
   fixturePath,
+  useFixture: process.env.MUFU_AGENT === 'fake',
   agent: envAgent(process.env.MUFU_AGENT),
 });
 
-function envAgent(value: string | undefined): 'fake' | 'codex' | 'claude' | undefined {
-  if (value === 'fake' || value === 'codex' || value === 'claude') return value;
+function envAgent(value: string | undefined): 'codex' | 'claude' | undefined {
+  if (value === 'codex' || value === 'claude') return value;
   return undefined;
 }
 

@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { OPENROUTER_ACCOUNT, socketPath } from '@mufu/core';
+import { OPENROUTER_ACCOUNT } from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
+import { socketPath } from './runtime.ts';
 import { createMemorySecretStore } from './secrets.ts';
 
 const repoRoot = new URL('../../../', import.meta.url).pathname;
@@ -41,7 +42,7 @@ describe('openrouter secret rpc', () => {
       wsPort: 0,
       workflowsDir: join(repoRoot, 'packages/daemon/workflows'),
       fixturePath: join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl'),
-      agent: 'fake',
+      useFixture: true,
       secrets: createMemorySecretStore(),
     });
     try {
