@@ -3,9 +3,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from 'nod
 import { createServer as createNetServer, type Socket } from 'node:net';
 import { WebSocket, WebSocketServer } from 'ws';
 
-import type { RpcRequest, RpcResponse } from '@mufu/schema';
-
-import { DAEMON_WS_PORT, DEV_PORT } from './runtime.ts';
+import { DAEMON_WS_PORT, DEV_PORT, type RpcRequest, type RpcResponse } from '@mufu/schema';
 
 type Handle = (request: RpcRequest) => Promise<unknown>;
 

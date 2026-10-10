@@ -4,12 +4,12 @@ import { WebSocket } from 'ws';
 
 import { createClaudeAdapter, createCodexAdapter, createFakeAdapter } from '@mufu/adapters';
 import type { AgentAdapter, AgentKind, GitHub, SecretStore } from '@mufu/core';
+import { DAEMON_WS_PORT } from '@mufu/schema';
 
 import { doctor, type DoctorReport } from './doctor.ts';
 import { createTaskEngine } from './engine.ts';
 import { createGhClient } from './gh.ts';
 import { createRpc } from './rpc.ts';
-import { DAEMON_WS_PORT } from './runtime.ts';
 import { createDefaultSecretStore } from './secrets.ts';
 import { SqliteEventLog } from './store.ts';
 import { listen } from './transport.ts';

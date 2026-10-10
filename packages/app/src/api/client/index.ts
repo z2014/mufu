@@ -1,4 +1,4 @@
-import { DAEMON_WS_PORT } from '@/runtime';
+import { DAEMON_WS_PORT } from '@mufu/schema';
 
 /**
  * 唯一的守护进程客户端。本地 WebSocket 的请求就是一行 JSON，

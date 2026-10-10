@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { DomainEvent, TaskView } from '@mufu/core';
-import { dataDir, DEV_PORT, resolveDaemonPort, socketPath, startDaemon } from '@mufu/daemon';
+import { dataDir, resolveDaemonPort, socketPath, startDaemon } from '@mufu/daemon';
+import { DEV_PORT } from '@mufu/schema';
 
 import { callDaemon } from './client.ts';
 
