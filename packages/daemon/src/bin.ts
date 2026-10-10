@@ -20,7 +20,6 @@ const daemon = await startDaemon({
   workflowsDir,
   fixturePath,
   agent: envAgent(process.env.MUFU_AGENT),
-  maxConcurrent: process.env.MUFU_MAX_CONCURRENT ? Number(process.env.MUFU_MAX_CONCURRENT) : undefined,
 });
 
 function envAgent(value: string | undefined): 'fake' | 'codex' | 'claude' | undefined {

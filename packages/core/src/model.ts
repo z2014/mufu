@@ -1,4 +1,4 @@
-export type TaskStatus = 'queued' | 'running' | 'needs_you' | 'to_review' | 'done';
+export type TaskStatus = 'running' | 'needs_you' | 'to_review' | 'done';
 
 export type Column = 'needs_you' | 'running' | 'to_review';
 
@@ -123,8 +123,7 @@ export function sortInColumn(tasks: TaskView[]): TaskView[] {
 }
 
 const allowed: Record<TaskStatus, TaskStatus[]> = {
-  queued: ['running', 'needs_you'],
-  running: ['needs_you', 'to_review', 'queued', 'done'],
+  running: ['needs_you', 'to_review', 'done'],
   needs_you: ['running', 'to_review', 'done'],
   to_review: ['done', 'running', 'needs_you'],
   done: [],

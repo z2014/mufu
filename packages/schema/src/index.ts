@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const taskStatusSchema = z.enum(['queued', 'running', 'needs_you', 'to_review', 'done']);
+export const taskStatusSchema = z.enum(['running', 'needs_you', 'to_review', 'done']);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
 export const workflowSchema = z.object({
