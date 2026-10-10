@@ -8,6 +8,8 @@ import { parse as parseYaml } from 'yaml';
 
 import { createClaudeAdapter, createCodexAdapter, createFakeAdapter } from '@mufu/adapters';
 import {
+  DAEMON_WS_PORT,
+  DEV_PORT,
   MAX_ATTEMPTS,
   MAX_PINS_PER_STAGE,
   MergeUnavailable,
@@ -312,20 +314,64 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     }
   }
 
+  const requested = options.wsPort ?? DAEMON_WS_PORT;
+  if (!Number.isInteger(requested) || requested < 0 || requested > 65535 || requested === DEV_PORT) {
+    log.close();
+    throw new Error(
+      `守护进程不能听 ${requested}。看板端口 ${DEV_PORT} 只给 pnpm dev:app（http://127.0.0.1:${DEV_PORT}），WebSocket 用 ${DAEMON_WS_PORT}。`,
+    );
+  }
+
   const socket = createNetServer((connection) => attachNdjson(connection, handle));
   await new Promise<void>((resolve, reject) => {
     socket.once('error', reject);
     socket.listen(options.socketPath, () => resolve());
   });
 
-  const http: HttpServer = createHttpServer();
+  const hint = `mufu 守护进程不提供看板。\n在另一个终端运行 pnpm dev:app，然后打开 http://127.0.0.1:${DEV_PORT}\n`;
+  const http: HttpServer = createHttpServer((_req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Length': Buffer.byteLength(hint),
+      'Cache-Control': 'no-store',
+    });
+    res.end(hint);
+  });
   const wss = new WebSocketServer({ server: http });
   wss.on('connection', (socketConnection) => attachWebSocket(socketConnection, handle));
   const wsPort = await new Promise<number>((resolve, reject) => {
-    http.once('error', reject);
-    http.listen(options.wsPort ?? 0, '127.0.0.1', () => {
+    const fail = (error: Error) => {
+      http.close(() => {
+        socket.close(() => {
+          log.close();
+          rmSync(options.socketPath, { force: true });
+          reject(error);
+        });
+      });
+    };
+    http.once('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        fail(
+          new Error(
+            `127.0.0.1:${requested} 已被占用。守护进程的 WebSocket 是 ${DAEMON_WS_PORT}，看板端口 ${DEV_PORT} 留给 pnpm dev:app。`,
+          ),
+        );
+        return;
+      }
+      fail(error);
+    });
+    http.listen({ port: requested, host: '127.0.0.1', exclusive: true }, () => {
       const address = http.address();
-      resolve(typeof address === 'object' && address ? address.port : 0);
+      const port = typeof address === 'object' && address ? address.port : 0;
+      if (port === DEV_PORT || (requested !== 0 && port !== requested)) {
+        fail(
+          new Error(
+            `守护进程绑在了 127.0.0.1:${port}。它不能占看板端口 ${DEV_PORT}，WebSocket 应是 ${requested === 0 ? DAEMON_WS_PORT : requested}。`,
+          ),
+        );
+        return;
+      }
+      resolve(port);
     });
   });
 

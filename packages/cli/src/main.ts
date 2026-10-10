@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dataDir, socketPath, type DomainEvent, type TaskView } from '@mufu/core';
+import { dataDir, DEV_PORT, resolveDaemonPort, socketPath, type DomainEvent, type TaskView } from '@mufu/core';
 import { startDaemon } from '@mufu/daemon';
 
 import { callDaemon } from './client.ts';
@@ -46,13 +46,16 @@ async function main(): Promise<void> {
     const daemon = await startDaemon({
       home,
       socketPath: socketPath(home),
-      wsPort: process.env.MUFU_WS_PORT ? Number(process.env.MUFU_WS_PORT) : 43124,
+      wsPort: resolveDaemonPort(process.env),
       workflowsDir: process.env.MUFU_WORKFLOWS ?? join(here, '../../daemon/workflows'),
       fixturePath: process.env.MUFU_FIXTURE ?? join(here, '../../../fixtures/handwritten/fix-bug.fake.jsonl'),
       agent: (process.env.MUFU_AGENT as 'fake' | 'codex' | 'claude' | undefined) ?? 'fake',
       maxConcurrent: process.env.MUFU_MAX_CONCURRENT ? Number(process.env.MUFU_MAX_CONCURRENT) : undefined,
     });
-    process.stdout.write(`mufu daemon listening ${daemon.socketPath} ws ${daemon.wsPort}\n`);
+    writeSync(
+      1,
+      `mufu daemon listening ${daemon.socketPath} ws 127.0.0.1:${daemon.wsPort}\n看板 http://127.0.0.1:${DEV_PORT} （另一个终端：pnpm dev:app）\n`,
+    );
     await new Promise<void>((resolve) => {
       const stop = () => {
         void daemon.close().then(() => resolve());

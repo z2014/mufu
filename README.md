@@ -21,15 +21,19 @@ pnpm lint
 pnpm test
 ```
 
+`pnpm install` 会编译 electron 和 esbuild。桌面壳若提示找不到 electron，再执行 `pnpm rebuild electron esbuild`。
+
 `pnpm test` 使用 `fixtures/handwritten/`。通过只说明替身和解析器没坏，**不算** Codex / Claude 真的跑通。
 
 ## 命令行
 
-先开守护进程（本机 Unix socket，默认 WebSocket `127.0.0.1:43124`）：
+先开守护进程。它听本机 Unix socket，WebSocket 在 `127.0.0.1:43124`。它不提供页面。浏览器打开守护进程的端口只会看到一段纯文本，告诉你去开看板。
 
 ```bash
 pnpm daemon
 ```
+
+日志里应有 `ws 127.0.0.1:43124`。不要设置 `MUFU_WS_PORT=43123`，也不要设置 `PORT` 来改它。设成看板端口时守护进程会直接退出。
 
 另一个终端：
 
@@ -47,12 +51,25 @@ pnpm mufu -- doctor
 
 ## 看板
 
+两个端口都写在 `packages/core/src/product.ts`。`DEV_PORT`（43123）只有 `pnpm dev:app` 在听。`DAEMON_WS_PORT`（43124）只有守护进程的 WebSocket 在听。守护进程不托管看板。
+
+终端 1：
+
 ```bash
 pnpm daemon
+```
+
+这时打开 <http://127.0.0.1:43123> 会连不上。页面还没人提供，这是正常的。
+
+终端 2：
+
+```bash
 pnpm dev:app
 ```
 
-浏览器打开 <http://127.0.0.1:43123>。三列是「等你 / 进行中 / 待验收」。排队的任务在「进行中」里用虚线卡片。完成的任务离开看板。
+浏览器打开 <http://127.0.0.1:43123>。地址用 `127.0.0.1`，不要用 `localhost`（macOS 上 `localhost` 常常先走 IPv6，而这两个服务只绑 IPv4）。三列是「等你 / 进行中 / 待验收」。排队的任务在「进行中」里用虚线卡片。完成的任务离开看板。
+
+如果 `pnpm dev:app` 报 43123 已被占用，停掉占着这个端口的进程再开。旧的守护进程如果曾经把 WebSocket 绑在 43123 上，就会把看板端口占住，而且浏览器打不开页面。停掉它，确认环境里没有 `MUFU_WS_PORT=43123`，再按上面两个终端重新开。
 
 桌面壳（本地构建，没有签名。macOS 第一次打开若被拦截，在「隐私与安全性」里允许这一次，或右键打开）：
 

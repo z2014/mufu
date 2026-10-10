@@ -4,7 +4,10 @@ export {
   CONFIG_DIR_NAME,
   LAUNCH_AGENT_LABEL,
   KEYCHAIN_SERVICE,
+  DEV_PORT,
+  DAEMON_WS_PORT,
   DEFAULT_WS_PORT,
+  resolveDaemonPort,
 } from './product.ts';
 export { dataDir, socketPath } from './paths.ts';
 export {
