@@ -118,7 +118,7 @@ pnpm build:mac
 xattr -dr com.apple.quarantine mufu.app
 ```
 
-双击之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
+打开之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
 
 卸掉这个 LaunchAgent：
 
