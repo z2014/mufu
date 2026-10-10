@@ -41,6 +41,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       pendingGate: null,
       sessionId: null,
       agentKind: null,
+      sessions: {},
       pins: [],
       artifacts: [],
       messages: [{ id: event.id, role: 'user', author: '你', text: str(event.payload, 'prompt') }],
@@ -79,10 +80,14 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
     case 'attempt.counted':
       task.attempts = Number(payload.attempt);
       break;
-    case 'agent.session':
-      task.sessionId = str(payload, 'sessionId');
-      task.agentKind = str(payload, 'kind');
+    case 'agent.session': {
+      const kind = str(payload, 'kind');
+      const sessionId = str(payload, 'sessionId');
+      task.sessionId = sessionId;
+      task.agentKind = kind;
+      if (kind === 'codex' || kind === 'claude' || kind === 'fake') task.sessions[kind] = sessionId;
       break;
+    }
     case 'agent.message':
       task.messages.push({
         id: event.id,

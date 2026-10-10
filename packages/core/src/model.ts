@@ -2,10 +2,14 @@ export type TaskStatus = 'queued' | 'running' | 'needs_you' | 'to_review' | 'don
 
 export type Column = 'needs_you' | 'running' | 'to_review';
 
+export type StageAgent = 'codex' | 'claude' | 'fake';
+
 export type WorkflowStage = {
   id: string;
   title: string;
   gate?: 'final' | 'stage';
+  /** 这一阶段用哪个代理。任务创建时可以盖掉模板。 */
+  agent?: StageAgent;
 };
 
 export type Workflow = {
@@ -65,6 +69,8 @@ export type TaskView = {
   pendingGate: GateView | null;
   sessionId: string | null;
   agentKind: string | null;
+  /** 每个代理最近一次会话 id，恢复时用它，不用任务 id。 */
+  sessions: Partial<Record<StageAgent, string>>;
   pins: PinView[];
   artifacts: ArtifactView[];
   messages: MessageView[];

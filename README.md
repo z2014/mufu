@@ -2,9 +2,28 @@
 
 个人用的本地工作台。任务在你自己的机器上跑，代理用已经登录的 Codex CLI 和 Claude，人只在门禁上点通过或打回。
 
-这是第一刀原型：一条「修 bug」路径，从命令行创建任务，到门禁，到看板上的三列。协调 Agent 是固定文案。不会合并 PR，也不会保存 Codex / Claude 的 key。
+这是第一刀原型：一条「修 bug」路径，从创建任务，到门禁，到看板上的三列。协调 Agent 是固定文案。不会合并 PR，也不会保存 Codex / Claude 的 key。
 
 协议和还没在真二进制上核对的问题写在 [docs/protocols.md](docs/protocols.md)。什么算验证过写在 [docs/verification.md](docs/verification.md)。
+
+## 先跑起来
+
+```bash
+pnpm install
+pnpm start
+```
+
+这一条会编译桌面壳的主进程，打开守护进程，再打开 Electron 窗口。窗口加载 <http://127.0.0.1:43123>。地址用 `127.0.0.1`，不要用 `localhost`。
+
+守护进程同时拿着 Codex 和 Claude。修 bug 默认 Claude 复现和验收，Codex 修复、提 PR。创建任务时可以按阶段改。两边各自检查订阅登录：没登录的那一边只让用到它的任务停在「等你」，卡片上是黑色「!」，另一边照常跑。
+
+不连真代理、只用替身时：
+
+```bash
+MUFU_AGENT=fake pnpm start
+```
+
+`MUFU_AGENT=codex` 或 `claude` 只是阶段没写代理时的默认，不是「整个守护进程只跑一个」。
 
 ## 环境
 
@@ -47,11 +66,13 @@ pnpm mufu -- gate reject <gateId>
 pnpm mufu -- doctor
 ```
 
-默认代理是 fake，读 `fixtures/handwritten/fix-bug.fake.jsonl`。真代理要在守护进程的环境里设 `MUFU_AGENT=codex` 或 `MUFU_AGENT=claude`。没有登录时适配器会在把任务送出去之前拒绝。
+不设 `MUFU_AGENT` 时，阶段用流程模板里的代理（Codex / Claude）。`MUFU_AGENT=fake` 时整条任务改读 `fixtures/handwritten/fix-bug.fake.jsonl`。创建时可以用重复的 `--agent 阶段=codex` 盖掉模板，例如 `--agent reproduce=codex --agent accept=codex`。没有订阅登录的那一边会在把任务送出去之前拒绝，并且只挡住用到它的任务。
 
 ## 看板
 
-两个端口都写在 `packages/core/src/product.ts`。`DEV_PORT`（43123）只有 `pnpm dev:app` 在听。`DAEMON_WS_PORT`（43124）只有守护进程的 WebSocket 在听。守护进程不托管看板。
+`pnpm start` 已经同时打开守护进程和窗口。要拆开看日志时再用下面的两个终端。
+
+两个端口都写在 `packages/core/src/product.ts`。`DEV_PORT`（43123）只有看板在听。`DAEMON_WS_PORT`（43124）只有守护进程的 WebSocket 在听。守护进程不托管看板。
 
 终端 1：
 

@@ -27,6 +27,7 @@ function task(status: TaskStatus, seq: number, attention: TaskView['attention'])
     pendingGate: null,
     sessionId: null,
     agentKind: null,
+    sessions: {},
     pins: [],
     artifacts: [],
     messages: [],

@@ -14,13 +14,34 @@ function usage(): void {
   process.stderr.write(`用法：
   mufu daemon
   mufu doctor
-  mufu task create --title 标题 --prompt 描述 [--repo 路径] [--workflow fix-bug]
+  mufu task create --title 标题 --prompt 描述 [--repo 路径] [--workflow fix-bug] [--agent 阶段=codex]
   mufu task status <taskId>
   mufu task events <taskId>
   mufu task list
   mufu gate approve <gateId>
   mufu gate reject <gateId>
 `);
+}
+
+function envAgent(value: string | undefined): 'fake' | 'codex' | 'claude' | undefined {
+  if (value === 'fake' || value === 'codex' || value === 'claude') return value;
+  return undefined;
+}
+
+function agentFlags(): Record<string, 'codex' | 'claude'> | undefined {
+  const map: Record<string, 'codex' | 'claude'> = {};
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] !== '--agent') continue;
+    const value = process.argv[index + 1] ?? '';
+    const eq = value.indexOf('=');
+    const stage = eq > 0 ? value.slice(0, eq) : '';
+    const kind = eq > 0 ? value.slice(eq + 1) : '';
+    if ((kind !== 'codex' && kind !== 'claude') || stage.length === 0) {
+      throw new Error('--agent 要写成 阶段=codex 或 阶段=claude');
+    }
+    map[stage] = kind;
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
 }
 
 function flag(name: string): string | undefined {
@@ -31,8 +52,10 @@ function flag(name: string): string | undefined {
 
 function printTask(task: TaskView): void {
   const gate = task.pendingGate ? `${task.pendingGate.summary}（${task.pendingGate.id}）` : '无';
+  const stage = task.workflow.stages.find((item) => item.id === task.stageId);
+  const agent = stage?.agent ?? task.agentKind ?? '未定';
   process.stdout.write(
-    `${[`任务 #${task.seq} ${task.title}`, `状态：${task.status}`, `阶段：${task.stageId}`, `门禁：${gate}`, `尝试：${task.attempts}  运行：${task.runs}`, `会话：${task.sessionId ?? '无'}`].join('\n')}\n`,
+    `${[`任务 #${task.seq} ${task.title}`, `状态：${task.status}`, `阶段：${task.stageId}（${agent}）`, `门禁：${gate}`, `尝试：${task.attempts}  运行：${task.runs}`, `会话：${task.sessionId ?? '无'}`].join('\n')}\n`,
   );
 }
 
@@ -49,7 +72,7 @@ async function main(): Promise<void> {
       wsPort: resolveDaemonPort(process.env),
       workflowsDir: process.env.MUFU_WORKFLOWS ?? join(here, '../../daemon/workflows'),
       fixturePath: process.env.MUFU_FIXTURE ?? join(here, '../../../fixtures/handwritten/fix-bug.fake.jsonl'),
-      agent: (process.env.MUFU_AGENT as 'fake' | 'codex' | 'claude' | undefined) ?? 'fake',
+      agent: envAgent(process.env.MUFU_AGENT),
       maxConcurrent: process.env.MUFU_MAX_CONCURRENT ? Number(process.env.MUFU_MAX_CONCURRENT) : undefined,
     });
     writeSync(
@@ -82,6 +105,7 @@ async function main(): Promise<void> {
       prompt,
       workflowId: flag('--workflow') ?? 'fix-bug',
       repoPath: flag('--repo'),
+      agents: agentFlags(),
     })) as TaskView;
     printTask(task);
     return;

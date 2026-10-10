@@ -31,6 +31,8 @@ export type StartSession = {
   workspacePath: string;
   prompt: string;
   resumeSessionId?: string;
+  /** 团队模式一次只跑一个阶段。不传则由夹具自己走完整个流程。 */
+  stageId?: string;
 };
 
 export type GateDecision = 'approve' | 'reject';
@@ -49,6 +51,11 @@ export interface AgentSession {
   readonly events: AsyncIterable<AgentEvent>;
   decide(requestId: string, decision: GateDecision): Promise<void>;
   interrupt(): Promise<void>;
+  /**
+   * 任务还在跑时，人从任务页补的一句话。
+   * 返回字符串时，守护进程立刻把它写进日志（门禁等待期间事件循环进不来）。
+   */
+  followUp?(text: string): string | void;
 }
 
 export class SubscriptionRefused extends Error {

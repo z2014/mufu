@@ -179,4 +179,56 @@ describe('board and daemon ports', () => {
       rmSync(home, { recursive: true, force: true });
     }
   }, 45000);
+
+  it('pnpm start serves the board and keeps the daemon off that port', async () => {
+    await waitFor('ports free', async () => !(await canConnect(DEV_PORT)) && !(await canConnect(DAEMON_WS_PORT)));
+    const home = mkdtempSync(join(tmpdir(), 'mufu-start-'));
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      MUFU_HOME: home,
+      MUFU_AGENT: 'fake',
+      MUFU_ELECTRON_CMD: 'node -e "setInterval(() => {}, 1000)"',
+    };
+    delete env.MUFU_WS_PORT;
+    delete env.PORT;
+    delete env.VITE_MUFU_WS_PORT;
+    const child = spawn('pnpm', ['start'], {
+      cwd: repoRoot,
+      detached: true,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let log = '';
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
+      log += chunk;
+    });
+    child.stderr?.on('data', (chunk: string) => {
+      log += chunk;
+    });
+    try {
+      await waitFor('start board', async () => {
+        if (!(await canConnect(DEV_PORT))) return false;
+        try {
+          const page = await httpGet(DEV_PORT);
+          return page.status === 200 && page.body.includes('<title>mufu</title>');
+        } catch {
+          return false;
+        }
+      });
+      const hint = await httpGet(DAEMON_WS_PORT);
+      expect(hint.body).toContain('pnpm dev:app');
+      expect(hint.body).not.toContain('<div id="root">');
+      const page = await httpGet(DEV_PORT);
+      expect(page.body).toContain('<div id="root">');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${detail}\n--- start ---\n${log}`);
+    } finally {
+      killGroup(child);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 60000);
 });

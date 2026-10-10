@@ -1,5 +1,7 @@
 import type { AgentEvent, OperationKind } from '@mufu/core';
 
+import { EventQueue } from '../line-queue.ts';
+
 /**
  * 只有 apiKeySource === 'none' 算订阅（claude.ai / 没有 API key）。
  * ANTHROPIC_API_KEY、apiKeyHelper、/login managed key 都拒绝。
@@ -113,6 +115,8 @@ export function createPromptGate(prompt: string): {
   iterable: AsyncIterable<SdkUserMessage>;
   allow(): void;
   block(): void;
+  push(text: string): void;
+  close(): void;
 } {
   let settle: (ok: boolean) => void = () => undefined;
   const ready = new Promise<boolean>((resolve) => {
@@ -124,18 +128,23 @@ export function createPromptGate(prompt: string): {
     settled = true;
     settle(ok);
   };
+  const more = new EventQueue<string>();
+  const user = (content: string): SdkUserMessage => ({
+    type: 'user',
+    message: { role: 'user', content },
+    parent_tool_use_id: null,
+  });
   return {
     allow: () => finish(true),
     block: () => finish(false),
+    push: (text) => more.push(text),
+    close: () => more.close(),
     iterable: {
       async *[Symbol.asyncIterator]() {
         const ok = await ready;
         if (!ok) return;
-        yield {
-          type: 'user',
-          message: { role: 'user', content: prompt },
-          parent_tool_use_id: null,
-        };
+        yield user(prompt);
+        for await (const text of more) yield user(text);
       },
     },
   };

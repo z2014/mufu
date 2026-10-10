@@ -143,8 +143,12 @@ export function createClaudeAdapter(options?: {
           decisions.delete(requestId);
           resolve(decision);
         },
+        followUp(text: string) {
+          gate.push(text);
+        },
         async interrupt() {
           gate.block();
+          gate.close();
           await query.interrupt?.();
           events.push({ type: 'interrupted' });
           events.close();

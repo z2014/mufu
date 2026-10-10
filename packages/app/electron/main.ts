@@ -1,7 +1,16 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
 
 const rendererUrl = process.env.MUFU_RENDERER_URL;
+
+ipcMain.handle('pick-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: '选择工作目录',
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0] ?? null;
+});
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -9,6 +18,7 @@ function createWindow(): void {
     height: 900,
     title: 'mufu',
     webPreferences: {
+      preload: join(import.meta.dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

@@ -48,12 +48,13 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
         input.resumeSessionId ?? lines.find((line) => line.sessionId)?.sessionId ?? `fake-${input.taskId}`;
       const decisions = new Map<string, (decision: GateDecision) => void>();
       let interrupted = false;
+      const script = input.stageId ? linesForStage(lines, input.stageId) : lines;
 
       async function* events(): AsyncGenerator<AgentEvent> {
         if (input.resumeSessionId) {
           yield { type: 'message', author: 'fake', text: `已按会话 ${input.resumeSessionId} 恢复` };
         }
-        for (const line of lines) {
+        for (const line of script) {
           if (interrupted) {
             yield { type: 'interrupted' };
             return;
@@ -96,9 +97,24 @@ export function createFakeAdapter(fixturePath: string): AgentAdapter {
           for (const resolve of decisions.values()) resolve('reject');
           decisions.clear();
         },
+        followUp(text: string) {
+          return `收到：${text}`;
+        },
       };
     },
   };
+}
+
+function linesForStage(lines: FakeLine[], stageId: string): FakeLine[] {
+  const start = lines.findIndex((line) => line.type === 'stage' && line.stageId === stageId);
+  if (start < 0) {
+    return [
+      { type: 'message', author: 'fake', text: `夹具里没有阶段 ${stageId}` },
+      { type: 'completed', ok: true },
+    ];
+  }
+  const next = lines.findIndex((line, index) => index > start && line.type === 'stage');
+  return lines.slice(start, next < 0 ? undefined : next);
 }
 
 function toEvent(line: FakeLine): AgentEvent | null {

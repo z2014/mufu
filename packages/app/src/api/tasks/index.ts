@@ -21,6 +21,7 @@ export const taskViewSchema = z.object({
         id: z.string(),
         title: z.string(),
         gate: z.enum(['final', 'stage']).optional(),
+        agent: z.enum(['codex', 'claude', 'fake']).optional(),
       }),
     ),
   }),
@@ -45,6 +46,11 @@ export const taskViewSchema = z.object({
     .nullable(),
   sessionId: z.string().nullable(),
   agentKind: z.string().nullable(),
+  sessions: z.object({
+    codex: z.string().optional(),
+    claude: z.string().optional(),
+    fake: z.string().optional(),
+  }),
   pins: z.array(
     z.object({
       id: z.string(),
@@ -91,10 +97,27 @@ const doctorSchema = z.object({
 
 export type DoctorView = z.infer<typeof doctorSchema>;
 
+const workflowSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  doneWhen: z.enum(['pr_merged', 'final_gate_approved']),
+  stages: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      gate: z.enum(['final', 'stage']).optional(),
+      agent: z.enum(['codex', 'claude', 'fake']).optional(),
+    }),
+  ),
+});
+
+export type WorkflowChoice = z.infer<typeof workflowSchema>;
+
 export const taskKeys = {
   list: ['tasks', 'list'] as const,
   detail: (taskId: string) => ['tasks', taskId] as const,
   doctor: ['doctor'] as const,
+  workflows: ['workflows'] as const,
 };
 
 function parse<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
@@ -118,8 +141,13 @@ export async function createTask(input: {
   prompt: string;
   workflowId: string;
   repoPath?: string;
+  agents?: Record<string, 'codex' | 'claude'>;
 }): Promise<TaskView> {
   return parse(taskViewSchema, await rpc('task.create', input), '新任务');
+}
+
+export async function listWorkflows(): Promise<WorkflowChoice[]> {
+  return parse(z.array(workflowSchema), await rpc('workflow.list'), '流程');
 }
 
 export async function resolveGate(gateId: string, decision: 'approve' | 'reject'): Promise<unknown> {

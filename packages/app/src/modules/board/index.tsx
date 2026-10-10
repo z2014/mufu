@@ -1,9 +1,9 @@
 import { columnOf, type Column, type TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
-import { createTask, DaemonError, fetchDoctor, listTasks, taskKeys } from '@/api/tasks';
+import { createTask, DaemonError, fetchDoctor, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { Button } from '@/common/components/ui/button';
 import { cn } from '@/common/utils';
@@ -13,13 +13,11 @@ import { usePreferences } from '@/store/preferences';
 const columns: Column[] = ['needs_you', 'running', 'to_review'];
 
 const nav = [
-  { label: '任务', icon: '#', live: true },
-  { label: '对话', icon: '◌', live: false },
-  { label: '自动化', icon: '◷', live: false },
-  { label: 'Agents', icon: '☺', live: false },
-  { label: 'Skills', icon: '▤', live: false },
-  { label: '集成', icon: '⌁', live: false },
-  { label: '设置', icon: '⚙', live: false },
+  { label: '新任务', icon: '＋', action: 'create' as const },
+  { label: '任务', icon: '▦', action: 'board' as const },
+  { label: '对话', icon: '◌', action: 'none' as const },
+  { label: '自动化', icon: '◷', action: 'none' as const },
+  { label: '扩展', icon: '⊞', action: 'none' as const },
 ];
 
 function group(tasks: TaskView[]): Record<Column, TaskView[]> {
@@ -31,9 +29,11 @@ function group(tasks: TaskView[]): Record<Column, TaskView[]> {
 }
 
 export function Component() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const tasks = useQuery({ queryKey: taskKeys.list, queryFn: listTasks, refetchInterval: 1500 });
   const doctor = useQuery({ queryKey: taskKeys.doctor, queryFn: fetchDoctor, retry: false });
+  const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
   const [open, setOpen] = useState(false);
@@ -44,11 +44,13 @@ export function Component() {
         prompt: input.prompt,
         workflowId: input.workflowId,
         repoPath: input.repoPath.trim() || undefined,
+        agents: input.agents,
       }),
-    onSuccess: async (_task, input) => {
+    onSuccess: async (created, input) => {
       setRepoPath(input.repoPath);
       setOpen(false);
       await queryClient.invalidateQueries({ queryKey: taskKeys.list });
+      void navigate(`/task/${created.id}`);
     },
   });
   const grouped = tasks.data ? group(tasks.data) : null;
@@ -57,21 +59,8 @@ export function Component() {
   return (
     <div className="bg-background flex h-dvh flex-col md:flex-row">
       <nav className="bg-muted flex gap-1 overflow-x-auto border-b px-2 py-2 md:w-44 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:px-2 md:py-2.5">
-        <div className="mb-1 hidden gap-1.5 md:flex">
-          <button
-            type="button"
-            className="bg-accent text-muted-foreground h-8 flex-1 rounded-md"
-            aria-label="新任务"
-            onClick={() => setOpen(true)}
-          >
-            ＋
-          </button>
-          <button type="button" className="bg-accent text-muted-foreground size-8 rounded-md" aria-disabled="true">
-            ⌕
-          </button>
-        </div>
         {nav.map((item) =>
-          item.live ? (
+          item.action === 'board' ? (
             <Link
               key={item.label}
               to="/"
@@ -85,8 +74,11 @@ export function Component() {
             <button
               key={item.label}
               type="button"
-              aria-disabled="true"
-              className="text-foreground flex cursor-default items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left"
+              aria-disabled={item.action === 'none'}
+              className="text-foreground flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left"
+              onClick={() => {
+                if (item.action === 'create') setOpen(true);
+              }}
             >
               <span className="text-muted-foreground w-3.5 text-center">{item.icon}</span>
               {item.label}
@@ -141,6 +133,7 @@ export function Component() {
         open={open}
         onOpenChange={setOpen}
         defaultRepo={repoPath}
+        workflows={workflows.data ?? []}
         pending={create.isPending}
         errorMessage={create.error instanceof Error ? create.error.message : null}
         onSubmit={(value) => {

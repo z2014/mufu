@@ -175,6 +175,10 @@ export function createCodexAdapter(options?: {
             decisions.delete(requestId);
             resolve(decision);
           },
+          followUp(text: string) {
+            if (!threadId) return;
+            void send('turn/start', { threadId, input: [{ type: 'text', text }] }, true).catch(() => undefined);
+          },
           async interrupt() {
             const interrupt = turnInterruptParams(threadId, turnId);
             if (interrupt) await send('turn/interrupt', interrupt, true).catch(() => undefined);

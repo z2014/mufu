@@ -19,9 +19,14 @@ const daemon = await startDaemon({
   wsPort: resolveDaemonPort(process.env),
   workflowsDir,
   fixturePath,
-  agent: (process.env.MUFU_AGENT as 'fake' | 'codex' | 'claude' | undefined) ?? 'fake',
+  agent: envAgent(process.env.MUFU_AGENT),
   maxConcurrent: process.env.MUFU_MAX_CONCURRENT ? Number(process.env.MUFU_MAX_CONCURRENT) : undefined,
 });
+
+function envAgent(value: string | undefined): 'fake' | 'codex' | 'claude' | undefined {
+  if (value === 'fake' || value === 'codex' || value === 'claude') return value;
+  return undefined;
+}
 
 writeSync(
   1,

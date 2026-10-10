@@ -3,7 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
-import { addNote, createTask, DaemonError, getTask, listTasks, readPins, resolveGate, taskKeys } from '@/api/tasks';
+import {
+  addNote,
+  createTask,
+  DaemonError,
+  getTask,
+  listTasks,
+  listWorkflows,
+  readPins,
+  resolveGate,
+  taskKeys,
+} from '@/api/tasks';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { cn } from '@/common/utils';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
@@ -24,6 +34,7 @@ export function Component() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const list = useQuery({ queryKey: taskKeys.list, queryFn: listTasks, refetchInterval: 1500 });
+  const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const task = useQuery({
     queryKey: taskKeys.detail(taskId),
     queryFn: () => getTask(taskId),
@@ -65,6 +76,7 @@ export function Component() {
         prompt: input.prompt,
         workflowId: input.workflowId,
         repoPath: input.repoPath.trim() || undefined,
+        agents: input.agents,
       }),
     onSuccess: async (created, input) => {
       setRepoPath(input.repoPath);
@@ -124,7 +136,10 @@ export function Component() {
             <>
               <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
                 <h1 className="font-semibold">{current.title}</h1>
-                <span className="text-muted-foreground text-xs">{current.workflow.title}</span>
+                <span className="text-muted-foreground text-xs">
+                  {current.workflow.title}
+                  {agentTitle(current.agentKind)}
+                </span>
                 <ol className="text-muted-foreground hidden items-center gap-2 text-xs md:flex">
                   {current.workflow.stages.map((stage, index) => {
                     const currentIndex = current.workflow.stages.findIndex((item) => item.id === current.stageId);
@@ -199,10 +214,15 @@ export function Component() {
                   type="submit"
                   className="bg-accent text-muted-foreground focus-visible:ring-ring absolute bottom-2.5 right-3 inline-flex size-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2"
                   aria-label="发送"
-                  disabled={note.isPending}
+                  disabled={note.isPending || current.status === 'done'}
                 >
                   ↑
                 </button>
+                {note.isError ? (
+                  <p className="text-muted-foreground absolute bottom-3 left-4 text-xs">
+                    {note.error instanceof Error ? note.error.message : '没送出去'}
+                  </p>
+                ) : null}
               </form>
             </>
           ) : null}
@@ -215,12 +235,20 @@ export function Component() {
         open={open}
         onOpenChange={setOpen}
         defaultRepo={repoPath}
+        workflows={workflows.data ?? []}
         pending={create.isPending}
         errorMessage={create.error instanceof Error ? create.error.message : null}
         onSubmit={(value) => create.mutate(value)}
       />
     </div>
   );
+}
+
+function agentTitle(kind: string | null): string {
+  if (kind === 'claude') return ' · Claude';
+  if (kind === 'codex') return ' · Codex';
+  if (kind === 'fake') return ' · 替身';
+  return '';
 }
 
 function TaskGroup({

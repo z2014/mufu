@@ -7,7 +7,7 @@
 1. `packages/cli` 通过本机 Unix socket 调用守护进程。
 2. `packages/daemon` 是唯一写入者（SQLite 追加日志），折叠出任务状态。
 3. `packages/core` 拥有任务/阶段/门禁状态和 `AgentAdapter`。
-4. `packages/adapters` 里的 fake 代理按 JSONL 回放。Codex 与 Claude 适配器实现同一接口，订阅检查和恢复藏在接口里面。
+4. `packages/adapters` 里的 fake 代理按 JSONL 回放。守护进程同时拿着 Codex 和 Claude。流程模板给每个阶段指定代理，创建任务时可以盖掉。两边的订阅检查各自做：没登录的那一边只挡住用到它的任务。`MUFU_AGENT=fake` 时整条任务改走替身。Codex 与 Claude 适配器实现同一接口，订阅检查和恢复藏在接口里面。
 5. `packages/app` 用同一个守护进程客户端读任务、批准门禁。
 
 替身：
