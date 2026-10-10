@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { DAEMON_WS_PORT, DEV_PORT, resolveDaemonPort } from './runtime.ts';
+import { DAEMON_WS_PORT, DEV_PORT } from '@mufu/schema';
+
+import { resolveDaemonPort } from './runtime.ts';
 
 describe('resolveDaemonPort', () => {
   it('defaults to the websocket port and ignores PORT', () => {

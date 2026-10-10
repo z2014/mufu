@@ -4,7 +4,7 @@ import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DAEMON_WS_PORT, DEV_PORT } from '@mufu/daemon';
+import { DAEMON_WS_PORT, DEV_PORT } from '@mufu/schema';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const children: ChildProcess[] = [];

@@ -8,7 +8,7 @@ import type { DomainEvent, Workflow } from './model.ts';
 const workflow: Workflow = {
   id: 'fix-bug',
   title: '修 bug',
-  doneWhen: 'final_gate_approved',
+  doneWhen: 'pr_merged',
   stages: [
     { id: 'reproduce', title: '复现' },
     { id: 'accept', title: '验收', gate: 'final' },

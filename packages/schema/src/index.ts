@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/** 浏览器看板。只有 `pnpm dev:app`（Vite）听这个端口。界面和守护进程的协议端口。 */
+export const DEV_PORT = 43123;
+
+/** 守护进程的 WebSocket。不提供页面。 */
+export const DAEMON_WS_PORT = 43124;
+
 export const taskStatusSchema = z.enum(['running', 'needs_you', 'to_review', 'done']);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
@@ -8,7 +14,7 @@ export const workflowSchema = z.object({
   title: z.string().min(1),
   /** 多个文件同时为 true 时，加载直接失败。都不写时用目录里排第一的文件。 */
   default: z.boolean().optional(),
-  done_when: z.enum(['pr_merged', 'final_gate_approved']),
+  done_when: z.enum(['pr_merged']),
   stages: z
     .array(
       z.object({
