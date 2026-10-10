@@ -112,10 +112,10 @@ pnpm build:mac
 
 产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。
 
-第一次打开未签名的包，系统会拦住。在访达里右键 `mufu.app`，选「打开」，或者：
+在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性，第一次要在访达里右键 `mufu.app`，选「打开」，或者在包所在目录执行：
 
 ```bash
-xattr -dr com.apple.quarantine /path/to/mufu.app
+xattr -dr com.apple.quarantine mufu.app
 ```
 
 双击之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
