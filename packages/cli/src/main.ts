@@ -3,8 +3,8 @@ import { mkdirSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dataDir, DEV_PORT, resolveDaemonPort, socketPath, type DomainEvent, type TaskView } from '@mufu/core';
-import { startDaemon } from '@mufu/daemon';
+import type { DomainEvent, TaskView } from '@mufu/core';
+import { dataDir, DEV_PORT, resolveDaemonPort, socketPath, startDaemon } from '@mufu/daemon';
 
 import { callDaemon } from './client.ts';
 
@@ -14,7 +14,7 @@ function usage(): void {
   process.stderr.write(`用法：
   mufu daemon
   mufu doctor
-  mufu task create --title 标题 --prompt 描述 [--repo 路径] [--workflow fix-bug] [--agent 阶段=codex]
+  mufu task create --title 标题 --prompt 描述 [--repo 路径] [--workflow 流程] [--agent 阶段=codex]
   mufu task status <taskId>
   mufu task events <taskId>
   mufu task list
@@ -23,8 +23,8 @@ function usage(): void {
 `);
 }
 
-function envAgent(value: string | undefined): 'fake' | 'codex' | 'claude' | undefined {
-  if (value === 'fake' || value === 'codex' || value === 'claude') return value;
+function envAgent(value: string | undefined): 'codex' | 'claude' | undefined {
+  if (value === 'codex' || value === 'claude') return value;
   return undefined;
 }
 
@@ -72,6 +72,7 @@ async function main(): Promise<void> {
       wsPort: resolveDaemonPort(process.env),
       workflowsDir: process.env.MUFU_WORKFLOWS ?? join(here, '../../daemon/workflows'),
       fixturePath: process.env.MUFU_FIXTURE ?? join(here, '../../../fixtures/handwritten/fix-bug.fake.jsonl'),
+      useFixture: process.env.MUFU_AGENT === 'fake',
       agent: envAgent(process.env.MUFU_AGENT),
     });
     writeSync(
@@ -99,10 +100,11 @@ async function main(): Promise<void> {
     const title = flag('--title');
     const prompt = flag('--prompt');
     if (!title || !prompt) throw new Error('需要 --title 和 --prompt');
+    const workflowId = flag('--workflow');
     const task = (await callDaemon('task.create', {
       title,
       prompt,
-      workflowId: flag('--workflow') ?? 'fix-bug',
+      ...(workflowId ? { workflowId } : {}),
       repoPath: flag('--repo'),
       agents: agentFlags(),
     })) as TaskView;

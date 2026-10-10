@@ -1,7 +1,6 @@
 /**
- * 和 packages/core/src/launchd.ts 同一份文本。
- * 桌面壳编译成普通 JS，不能 import 核心的 TypeScript 源。
- * electron/launch-agent.test.ts 会拿核心的函数对一下，两边必须一致。
+ * LaunchAgent 的 plist 只写在桌面壳里。
+ * 桌面壳编译成普通 JS，不从核心包再抄一份。
  */
 
 const LAUNCH_AGENT_LABEL = 'com.mufu.daemon';

@@ -3,16 +3,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { LAUNCH_AGENT_LABEL, launchAgentPlist as corePlist } from '@mufu/core';
-import { launchAgentPlist as shellPlist } from './plist.ts';
+import { LAUNCH_AGENT_LABEL } from '@mufu/core';
+import { launchAgentPlist } from './plist.ts';
 
 import { packagedDaemonLaunch, refreshLaunchAgent, shouldInstallLaunchAgent } from './launch-agent.ts';
 
 describe('launch agent', () => {
-  it('壳里的 plist 和核心是同一份', () => {
+  it('plist 带产品名、绝对路径参数，并且转义环境变量', () => {
     const env = { ELECTRON_RUN_AS_NODE: '1', MUFU_WORKFLOWS: '/Applications/mufu.app/Contents/Resources/workflows' };
-    expect(shellPlist('/bin/mufu', ['/abs/daemon.cjs'], env)).toBe(corePlist('/bin/mufu', ['/abs/daemon.cjs'], env));
-    expect(shellPlist('/bin/mufu')).toBe(corePlist('/bin/mufu'));
+    const text = launchAgentPlist('/bin/mufu', ['/abs/daemon.cjs'], env);
+    expect(text).toContain(LAUNCH_AGENT_LABEL);
+    expect(text).toContain('<string>/bin/mufu</string>');
+    expect(text).toContain('<string>/abs/daemon.cjs</string>');
+    expect(text).toContain('ELECTRON_RUN_AS_NODE');
+    expect(text).toContain('MUFU_WORKFLOWS');
+    expect(text).not.toContain('LaunchDaemons');
+    const escaped = launchAgentPlist('/bin/mufu', ['a&b'], { 'X"Y': '1<2' });
+    expect(escaped).toContain('a&amp;b');
+    expect(escaped).toContain('X&quot;Y');
+    expect(escaped).toContain('1&lt;2');
   });
 
   it('只有打好的 macOS 应用才安装', () => {

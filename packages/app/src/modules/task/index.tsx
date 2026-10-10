@@ -121,6 +121,7 @@ export function Component() {
                 <span className="text-muted-foreground text-xs">
                   {current.workflow.title}
                   {agentTitle(current.agentKind)}
+                  {current.status === 'to_review' && current.ci ? ` · ${ciText(current.ci.state)}` : ''}
                 </span>
                 <ol className="text-muted-foreground hidden items-center gap-2 text-xs md:flex">
                   {current.workflow.stages.map((stage, index) => {
@@ -229,8 +230,13 @@ export function Component() {
 function agentTitle(kind: string | null): string {
   if (kind === 'claude') return ' · Claude';
   if (kind === 'codex') return ' · Codex';
-  if (kind === 'fake') return ' · 替身';
   return '';
+}
+
+function ciText(state: 'pending' | 'passed' | 'failed'): string {
+  if (state === 'passed') return 'CI 通过';
+  if (state === 'failed') return 'CI 失败';
+  return 'CI 还在跑';
 }
 
 function TaskGroup({

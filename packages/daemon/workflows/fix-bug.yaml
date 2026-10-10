@@ -1,6 +1,7 @@
 id: fix-bug
 title: 修 bug
-done_when: final_gate_approved
+default: true
+done_when: pr_merged
 stages:
   - id: reproduce
     title: 复现

@@ -3,6 +3,7 @@ export { readCodexSubscription } from './codex/probe.ts';
 export { createClaudeAdapter } from './claude/adapter.ts';
 export { readClaudeSubscription } from './claude/probe.ts';
 export { createFakeAdapter } from './fake/adapter.ts';
+export type { FixtureRunner } from './fake/adapter.ts';
 export type { LoginVerdict } from './login.ts';
 export { detectConfigKeySources, fileStamp, scrubEnv, BLOCKED_ENV_KEYS } from './env.ts';
 export type { ConfigKeyFinding } from './env.ts';

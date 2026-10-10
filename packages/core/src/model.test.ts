@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  LAUNCH_AGENT_LABEL,
-  PRODUCT_NAME,
-  classifyCodexQuotaWindow,
-  countsAsAttempt,
-  launchAgentPlist,
-} from './index.ts';
+import { LAUNCH_AGENT_LABEL, PRODUCT_NAME, countsAsAttempt } from './index.ts';
 import { assertTransition, columnOf, sortInColumn, type TaskStatus, type TaskView } from './model.ts';
 
 function task(status: TaskStatus, seq: number, attention: TaskView['attention']): TaskView {
@@ -34,6 +28,7 @@ function task(status: TaskStatus, seq: number, attention: TaskView['attention'])
     attempts: 0,
     runs: 0,
     workspacePath: null,
+    ci: null,
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
 }
@@ -42,11 +37,6 @@ describe('product name', () => {
   it('派生名都来自同一个常量', () => {
     expect(PRODUCT_NAME).toBe('mufu');
     expect(LAUNCH_AGENT_LABEL).toBe('com.mufu.daemon');
-    expect(launchAgentPlist('/usr/local/bin/mufu')).toContain(LAUNCH_AGENT_LABEL);
-    expect(launchAgentPlist('/usr/local/bin/mufu')).toContain('<string>daemon</string>');
-    expect(launchAgentPlist('/bin/node', ['/abs/daemon.cjs'], { ELECTRON_RUN_AS_NODE: '1' })).toContain(
-      'ELECTRON_RUN_AS_NODE',
-    );
   });
 });
 
@@ -56,15 +46,9 @@ describe('attempt vs run', () => {
     expect(countsAsAttempt({ kind: 'auth', detail: 'expired' })).toBe(false);
     expect(countsAsAttempt({ kind: 'network', detail: 'reset' })).toBe(false);
     expect(countsAsAttempt({ kind: 'task', detail: 'tests failed' })).toBe(true);
-  });
-});
-
-describe('quota windows', () => {
-  it('每周额度放在 primary 时仍按秒数认成 weekly', () => {
-    expect(classifyCodexQuotaWindow({ seconds: 604800 })).toBe('weekly');
-    expect(classifyCodexQuotaWindow({ minutes: 10080 })).toBe('weekly');
-    expect(classifyCodexQuotaWindow({ seconds: 18000 })).toBe('session');
-    expect(classifyCodexQuotaWindow({})).toBe('unknown');
+    expect(countsAsAttempt({ kind: 'conflict', detail: 'cannot be cleanly created' })).toBe(true);
+    expect(countsAsAttempt({ kind: 'ci_failed', detail: 'failing checks' })).toBe(true);
+    expect(countsAsAttempt({ kind: 'environment', detail: 'gh auth login' })).toBe(false);
   });
 });
 

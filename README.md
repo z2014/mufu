@@ -72,7 +72,7 @@ pnpm mufu -- doctor
 
 `pnpm start` 已经同时打开守护进程和窗口。要拆开看日志时再用下面的两个终端。
 
-两个端口都写在 `packages/core/src/product.ts`。`DEV_PORT`（43123）只有看板在听。`DAEMON_WS_PORT`（43124）只有守护进程的 WebSocket 在听。守护进程不托管看板。
+两个端口写在 `packages/daemon/src/runtime.ts`，看板同一对数在 `packages/app/src/runtime.ts`。`DEV_PORT`（43123）只有看板在听。`DAEMON_WS_PORT`（43124）只有守护进程的 WebSocket 在听。守护进程不托管看板。
 
 终端 1：
 

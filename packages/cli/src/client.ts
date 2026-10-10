@@ -1,6 +1,6 @@
 import { connect } from 'node:net';
 
-import { socketPath, dataDir } from '@mufu/core';
+import { dataDir, socketPath } from '@mufu/daemon';
 import type { RpcResponse } from '@mufu/schema';
 
 export async function callDaemon(method: string, params?: unknown): Promise<unknown> {
