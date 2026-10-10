@@ -1,0 +1,13 @@
+id: new-feature
+title: 新功能
+done_when: final_gate_approved
+stages:
+  - id: spec
+    title: 方案
+  - id: implement
+    title: 实现
+  - id: pr
+    title: PR 与 CI
+  - id: accept
+    title: 验收
+    gate: final

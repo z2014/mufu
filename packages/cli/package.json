@@ -1,0 +1,17 @@
+{
+  "name": "@mufu/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mufu": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mufu/core": "workspace:*",
+    "@mufu/daemon": "workspace:*",
+    "@mufu/schema": "workspace:*"
+  }
+}

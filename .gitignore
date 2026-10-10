@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-electron
+dist-types
+agent-tools
+uploads
+*.sock
+.DS_Store
+coverage
+*.tsbuildinfo
+.mufu-data
+.env
+.env.*
+!.env.example

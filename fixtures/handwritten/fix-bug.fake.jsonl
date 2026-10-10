@@ -1,0 +1,16 @@
+{"origin":"handwritten","protocol":"mufu-fake","note":"修 bug 贯通路径的剧本，不是 Codex 或 Claude 的录音。"}
+{"type":"stage","stageId":"reproduce"}
+{"type":"message","author":"Claude","text":"已复现。接口返回空列表时 data 是 undefined，补了一个失败的测试。"}
+{"type":"pin","message":"根因：空列表时 data 为 undefined","reason":"根因","author":"Claude"}
+{"type":"artifact","title":"复现测试","detail":"useItems.test.ts"}
+{"type":"stage","stageId":"fix"}
+{"type":"message","author":"Codex","text":"已修复，加了空值兜底和 2 个测试，提交了 PR #50。"}
+{"type":"pin","message":"顺手删了 client.ts 里的旧兼容代码","reason":"改动","author":"Codex"}
+{"type":"artifact","title":"PR #50","detail":"3 个文件 · +38 −12"}
+{"type":"artifact","title":"根因说明","detail":"Markdown"}
+{"type":"stage","stageId":"pr"}
+{"type":"system","text":"CI 第一次失败，已修复后通过"}
+{"type":"stage","stageId":"accept"}
+{"type":"approval_request","requestId":"apr-final","operation":"final","gate":"final","summary":"验收 PR #50","detail":"CI 通过 · 无冲突 · 3 个文件"}
+{"type":"message","author":"协调 Agent","text":"可以验收了。有 2 条重点建议你先看一下。"}
+{"type":"completed","ok":true}

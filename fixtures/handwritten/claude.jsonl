@@ -1,0 +1,10 @@
+{"origin":"handwritten","protocol":"claude-agent-sdk","note":"按 Claude Agent SDK 与 stream-json 文档手写，不是录音。control_request 的形状来自 Vibe Kanban 的解析测试。"}
+{"type":"system","subtype":"init","apiKeySource":"none","session_id":"00000000-0000-4000-8000-000000000001","uuid":"00000000-0000-4000-8000-000000000002","cwd":"/tmp","tools":["Bash","Edit","WebFetch"],"mcp_servers":[],"model":"claude","permissionMode":"default"}
+{"type":"user","isReplay":true,"message":{"role":"user","content":"old"},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"docs say rate limit"}]},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"control_request","request_id":"req-bash","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"echo probe","timeout":300000,"description":"Run API tests"},"permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"echo probe"}],"behavior":"allow","destination":"localSettings"}]}}
+{"type":"control_request","request_id":"req-edit","request":{"subtype":"can_use_tool","tool_name":"Edit","input":{"file_path":"a.ts"}}}
+{"type":"control_request","request_id":"req-web","request":{"subtype":"can_use_tool","tool_name":"WebFetch","input":{"url":"https://example.com"}}}
+{"type":"control_request","request_id":"req-mcp","request":{"subtype":"can_use_tool","tool_name":"mcp__probe__ping","input":{}}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"five_hour"},"session_id":"00000000-0000-4000-8000-000000000001","uuid":"00000000-0000-4000-8000-000000000003"}
+{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"00000000-0000-4000-8000-000000000001"}

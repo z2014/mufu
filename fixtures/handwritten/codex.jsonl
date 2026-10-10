@@ -1,0 +1,16 @@
+{"origin":"handwritten","protocol":"codex-app-server","note":"按 Codex app-server 文档以及 Vibe Kanban、Nimbalyst 的字段手写，不是录音。"}
+{"id":1,"result":{"account":{"type":"chatgpt","email":"user@example.com","planType":"plus"},"requiresOpenaiAuth":true}}
+{"id":2,"result":{"thread":{"id":"thr_handwritten","sessionId":"thr_handwritten"}}}
+{"method":"thread/started","params":{"thread":{"id":"thr_handwritten"}}}
+{"id":3,"result":{"turn":{"id":"turn_1"}}}
+{"method":"item/commandExecution/requestApproval","id":90,"params":{"itemId":"item_early","threadId":"thr_handwritten","turnId":"turn_1","command":"echo probe","cwd":"/tmp","reason":"needs approval"}}
+{"method":"item/started","params":{"threadId":"thr_handwritten","turnId":"turn_1","item":{"id":"item_early","type":"commandExecution","command":"echo probe","status":"inProgress"}}}
+{"method":"item/fileChange/requestApproval","id":91,"params":{"itemId":"item_file","threadId":"thr_handwritten","turnId":"turn_1","reason":"edit"}}
+{"method":"item/commandExecution/requestApproval","id":92,"params":{"itemId":"item_net","threadId":"thr_handwritten","turnId":"turn_1","networkApprovalContext":{"host":"example.com","protocol":"https"}}}
+{"method":"item/permissions/requestApproval","id":93,"params":{"itemId":"item_perm","threadId":"thr_handwritten","turnId":"turn_1","network":true}}
+{"method":"mcpServer/elicitation/request","id":94,"params":{"threadId":"thr_handwritten","serverName":"probe","mode":"form","message":"allow?"}}
+{"method":"execCommandApproval","id":95,"params":{"itemId":"item_legacy","threadId":"thr_handwritten","command":"echo legacy"}}
+{"method":"item/completed","params":{"threadId":"other","item":{"type":"agentMessage","text":"child"}}}
+{"method":"item/completed","params":{"threadId":"thr_handwritten","item":{"id":"msg_1","type":"agentMessage","text":"已看过 rate limit 这个词"}}}
+{"method":"error","params":{"threadId":"thr_handwritten","error":{"message":"limit","codexErrorInfo":{"type":"UsageLimitExceeded","httpStatusCode":429}}}}
+{"method":"turn/completed","params":{"threadId":"thr_handwritten","turn":{"id":"turn_1","status":"completed"}}}

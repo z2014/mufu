@@ -1,0 +1,8 @@
+export { createCodexAdapter } from './codex/adapter.ts';
+export { createClaudeAdapter } from './claude/adapter.ts';
+export { createFakeAdapter } from './fake/adapter.ts';
+export { detectConfigKeySources, fileStamp, scrubEnv, BLOCKED_ENV_KEYS } from './env.ts';
+export type { ConfigKeyFinding } from './env.ts';
+export { claudeCliFallbackArgs, subscriptionFromClaudeInit, operationForTool } from './claude/protocol.ts';
+export { buildClaudeLaunchOptions } from './claude/options.ts';
+export { subscriptionFromCodexAccount, codexLaunchArgs } from './codex/protocol.ts';
