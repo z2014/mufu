@@ -35,3 +35,16 @@ export type RpcResponse = {
 
 export const gateDecisionSchema = z.enum(['approve', 'reject']);
 export type GateDecision = z.infer<typeof gateDecisionSchema>;
+
+/** 事件日志的形状版本。缺省当成 1。写日志的人必须带上当前版本。 */
+export const EVENT_SCHEMA_VERSION = 1;
+
+export const domainEventSchema = z.object({
+  schemaVersion: z.number().int().positive().default(EVENT_SCHEMA_VERSION),
+  id: z.string().min(1),
+  taskId: z.string().nullable(),
+  at: z.string().min(1),
+  type: z.string().min(1),
+  payload: z.record(z.unknown()),
+});
+export type DomainEventRecord = z.infer<typeof domainEventSchema>;

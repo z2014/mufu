@@ -19,7 +19,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export type StageAgentChoice = 'codex' | 'claude';
 
-export type WorkflowChoice = {
+type WorkflowChoice = {
   id: string;
   title: string;
   stages: { id: string; title: string; agent?: 'codex' | 'claude' | 'fake' }[];

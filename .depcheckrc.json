@@ -1,0 +1,13 @@
+{
+  "ignore-patterns": ["dist", "dist-electron", "dist-types", "fixtures", "docs", "uploads"],
+  "ignores": [
+    "@babel/core",
+    "eslint-plugin-react-hooks",
+    "globals",
+    "prettier-plugin-tailwindcss",
+    "prettier",
+    "dependency-cruiser",
+    "knip",
+    "depcheck"
+  ]
+}

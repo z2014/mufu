@@ -1,4 +1,4 @@
-import { LAUNCH_AGENT_LABEL, PRODUCT_NAME } from './product.ts';
+import { LAUNCH_AGENT_LABEL } from './product.ts';
 
 /** 每用户 LaunchAgent，不是 LaunchDaemon，这样才读得到登录钥匙串。原型不负责安装。 */
 export function launchAgentPlist(bin: string): string {
@@ -20,8 +20,4 @@ export function launchAgentPlist(bin: string): string {
 </dict>
 </plist>
 `;
-}
-
-export function productNameIs(name: string): boolean {
-  return name === PRODUCT_NAME;
 }

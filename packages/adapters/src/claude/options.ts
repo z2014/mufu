@@ -1,6 +1,6 @@
 import { scrubEnv } from '../env.ts';
 
-export type ClaudeLaunchOptions = {
+type ClaudeLaunchOptions = {
   cwd: string;
   permissionMode: 'default';
   permissionPrompts: 'host';

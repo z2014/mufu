@@ -50,7 +50,7 @@ function asRecord(value: unknown): Json | null {
   return value && typeof value === 'object' ? (value as Json) : null;
 }
 
-export function messageThreadId(message: Json): string | null {
+function messageThreadId(message: Json): string | null {
   const params = asRecord(message.params);
   if (!params) return null;
   if (typeof params.threadId === 'string') return params.threadId;
@@ -83,7 +83,7 @@ export function classifyCodexError(info: { type?: string; httpStatusCode?: numbe
   return { kind: 'task', detail: type ?? 'codex failed' };
 }
 
-export type CodexServerRequest = {
+type CodexServerRequest = {
   id: number;
   method: string;
   params: Json;
@@ -126,7 +126,7 @@ export function isApprovalMethod(method: string): boolean {
   return APPROVAL_METHODS.has(method);
 }
 
-export function operationForCodexMethod(method: string, params: Json): OperationKind {
+function operationForCodexMethod(method: string, params: Json): OperationKind {
   if (method === 'item/fileChange/requestApproval' || method === 'applyPatchApproval') return 'file_edit';
   if (method === 'mcpServer/elicitation/request') return 'mcp';
   if (method === 'item/permissions/requestApproval') {

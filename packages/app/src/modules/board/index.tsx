@@ -15,9 +15,6 @@ const columns: Column[] = ['needs_you', 'running', 'to_review'];
 const nav = [
   { label: '新任务', icon: '＋', action: 'create' as const },
   { label: '任务', icon: '▦', action: 'board' as const },
-  { label: '对话', icon: '◌', action: 'none' as const },
-  { label: '自动化', icon: '◷', action: 'none' as const },
-  { label: '扩展', icon: '⊞', action: 'none' as const },
 ];
 
 function group(tasks: TaskView[]): Record<Column, TaskView[]> {
@@ -74,7 +71,6 @@ export function Component() {
             <button
               key={item.label}
               type="button"
-              aria-disabled={item.action === 'none'}
               className="text-foreground flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left"
               onClick={() => {
                 if (item.action === 'create') setOpen(true);

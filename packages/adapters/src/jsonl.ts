@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-export type FixtureMarker = {
+type FixtureMarker = {
   origin: 'handwritten' | 'recorded';
   protocol: string;
   note?: string;
@@ -19,7 +19,7 @@ export function isFixtureMarker(
   );
 }
 
-export function readJsonl(path: string): unknown[] {
+function readJsonl(path: string): unknown[] {
   const text = readFileSync(path, 'utf8');
   const rows: unknown[] = [];
   for (const line of text.split('\n')) {

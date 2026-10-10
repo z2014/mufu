@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.ts"]
+    },
+    "packages/app": {
+      "entry": ["electron/main.ts", "electron/preload.ts", "src/global.d.ts"]
+    }
+  },
+  "ignoreIssues": {
+    "packages/core/src/product.ts": ["duplicates"],
+    "packages/app/src/common/components/ui/**": ["exports", "types"]
+  }
+}

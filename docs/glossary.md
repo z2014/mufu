@@ -20,5 +20,6 @@
 | 待验收     | 看板第三列。最终门禁。通过后任务完成并离开看板。                                                              | `to_review`                                   | 等你                     |
 | 手写夹具   | 在这台没有登录账号的机器上，按文档写成的 JSONL。不是录音。                                                    | `fixtures/handwritten`，`origin: handwritten` | 录制夹具                 |
 | 录制夹具   | 在用户的 Mac 上由 `pnpm verify:mac` 写下的原始事件流。路径只有在对着这些文件的测试通过之后才算真的验证过。    | `fixtures/recorded`，`origin: recorded`       | 手写夹具                 |
+| 事件版本   | 追加日志里每条事件的形状版本。现在是 1。读到不认识的版本就停，不猜测。缺省字段当成 1。                        | `schemaVersion`，`EVENT_SCHEMA_VERSION`       | 产品版本 `PRODUCT_VERSION` |
 
 产品名只有一处常量：`PRODUCT_NAME`（`packages/core`）。配置目录、命令行、LaunchAgent 标签、Application Support 目录和钥匙串服务都从它派生。

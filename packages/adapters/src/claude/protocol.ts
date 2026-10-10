@@ -30,7 +30,7 @@ function record(value: unknown): Json | null {
 }
 
 /** 历史回放不是新消息。Vibe Kanban 漏掉 isReplay 时，恢复后的界面会把旧话再显示一遍。 */
-export function isReplayMessage(message: Json): boolean {
+function isReplayMessage(message: Json): boolean {
   return message.isReplay === true || message.is_replay === true;
 }
 
@@ -101,7 +101,7 @@ function textFromContent(content: unknown): string {
     .join('');
 }
 
-export type SdkUserMessage = {
+type SdkUserMessage = {
   type: 'user';
   message: { role: 'user'; content: string };
   parent_tool_use_id: null;

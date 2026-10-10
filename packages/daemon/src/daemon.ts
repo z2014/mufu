@@ -21,7 +21,6 @@ import {
   type AgentEvent,
   type AgentKind,
   type AgentSession,
-  type DomainEvent,
   type TaskView,
   type Workflow,
 } from '@mufu/core';
@@ -664,5 +663,3 @@ async function answer(line: string, handle: (request: RpcRequest) => Promise<unk
     return { id: request.id, error: { message: error instanceof Error ? error.message : String(error) } };
   }
 }
-
-export type { DomainEvent };

@@ -81,6 +81,8 @@ export type TaskView = {
 };
 
 export type DomainEvent = {
+  /** 缺省是 1。见 EVENT_SCHEMA_VERSION。 */
+  schemaVersion?: number;
   id: string;
   taskId: string | null;
   at: string;

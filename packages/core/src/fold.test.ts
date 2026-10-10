@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { foldTasks } from './fold.ts';
+import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
+
+import { eventSchemaVersion, foldTasks } from './fold.ts';
 import type { DomainEvent, Workflow } from './model.ts';
 
 const workflow: Workflow = {
@@ -15,6 +17,7 @@ const workflow: Workflow = {
 
 function ev(partial: Partial<DomainEvent> & Pick<DomainEvent, 'type' | 'payload'>): DomainEvent {
   return {
+    schemaVersion: partial.schemaVersion,
     id: partial.id ?? partial.type,
     taskId: partial.taskId ?? 't1',
     at: partial.at ?? '2026-10-10T00:00:00.000Z',
@@ -63,5 +66,14 @@ describe('fold', () => {
     expect(tasks[0]?.attempts).toBe(0);
     expect(tasks[0]?.attention?.tool).toBe('codex');
     expect(tasks[0]?.status).toBe('needs_you');
+  });
+
+  it('缺省事件版本是 1，别的版本不折叠', () => {
+    expect(eventSchemaVersion(ev({ type: 'task.status', payload: { status: 'running' } }))).toBe(EVENT_SCHEMA_VERSION);
+    expect(() =>
+      foldTasks([
+        ev({ type: 'task.created', schemaVersion: 2, payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ]),
+    ).toThrow(/事件版本/);
   });
 });

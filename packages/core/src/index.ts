@@ -1,3 +1,4 @@
+export { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 export {
   PRODUCT_NAME,
   PRODUCT_VERSION,
@@ -33,7 +34,7 @@ export type {
   Workflow,
   WorkflowStage,
 } from './model.ts';
-export { foldTask, foldTasks } from './fold.ts';
+export { eventSchemaVersion, foldTask, foldTasks } from './fold.ts';
 export { SubscriptionRefused, leadIntro } from './agent.ts';
 export type {
   AgentAdapter,

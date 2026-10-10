@@ -1,0 +1,86 @@
+# 阶段 1 验收
+
+范围只有两条主路线，外加左栏底部的设置：看板 `/`、任务页 `/task/:id`、设置 `/settings`。没有对话、自动化、扩展、模板编辑器、费用统计、并发设置。
+
+对照样稿：`docs/design/ui-board4.html`、`docs/design/ui-min3.html`。颜色只用黑白灰（`@theme`），不抄样稿里的琥珀、绿、蓝。
+
+怎么读「在哪验」：
+
+- **替身**：这台机器上 `pnpm test` 和 `MUFU_AGENT=fake pnpm start` 就能看。
+- **Mac**：要在你的电脑上跑 `pnpm verify:mac`，或双击 `mufu.app`。Linux 上打不出、也跑不了这个包。
+
+## A. 看板 `/`
+
+| 项 | 在哪验 |
+| --- | --- |
+| 三列：等你 / 进行中 / 待验收 | 替身 |
+| 超出并发的任务在进行中，灰色虚线卡片。并发是固定配置，没有设置项 | 替身 |
+| 完成的任务离开看板 | 替身 |
+| 待验收卡片有「验收并合并」和「打回」 | 替身 |
+| 打回必须写一句，卡片回到进行中 | 替身 |
+| 左栏只有「新任务」和「任务」。需要你：黑点、失败是「!」、未读加粗；下面是进行中 | 替身 |
+| 守护进程 WebSocket 推送，不用手刷新 | 替身 |
+
+## B. 任务页 `/task/:id`
+
+| 项 | 在哪验 |
+| --- | --- |
+| 标题栏左侧是任务名和模板名，右侧阶段与模板一一对应：完成 ✓，进行中或等待 ○ | 替身 |
+| 聊天顶上「N 条重点未读」和「全部已读」。点一条滚到那条消息 | 替身 |
+| 钉住的消息左侧灰线加标签 | 替身 |
+| 人的消息是灰气泡；代理是名字加正文 | 替身 |
+| 审批卡片钉在输入框上方，不跟着消息滚走 | 替身 |
+| 右侧只有产物，可以收起 | 替身 |
+| 右上角「成员与能力」 | 替身 |
+| 输入框能发后续说明 | 替身 |
+
+## C. 新建任务
+
+| 项 | 在哪验 |
+| --- | --- |
+| 从「新任务」进入：描述、仓库目录（Electron 对话框）、模板（修 bug / 新功能）、按阶段改代理 | 替身。目录对话框要在 Electron 里点，浏览器里没有 |
+| 创建后卡片出现在进行中，并打开任务页 | 替身 |
+
+## D. 连接 / 设置
+
+| 项 | 在哪验 |
+| --- | --- |
+| 入口在左栏底部，不是第三条主导航 | 替身 |
+| codex、claude、gh：绝对路径（登录 shell）、已登录、订阅方式。Codex 看 account/read 的 type=chatgpt；Claude 看 apiKeySource none（claude.ai 登录）。每一项 ✓ 或 ✗，失败带修复提示 | 探测命令在替身测试里用注入的结果。真二进制的 account/read 和 apiKeySource 要 Mac |
+| 环境里有 ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / OPENAI_API_KEY 时显示「已检测到，已忽略，使用订阅」。不读、不存、不显示 Codex/Claude 的 key | 替身 |
+| OpenRouter key 只显示已设置或未设置，可替换、可删除。值进 macOS 钥匙串（`security`，服务名是产品名常量）。适配器还不用它 | 内存替身可在 Linux 测往返。真钥匙串要 Mac |
+
+## E. 桌面应用
+
+| 项 | 在哪验 |
+| --- | --- |
+| `pnpm build:mac` 打出未签名的 mufu.app | Mac。Linux 上这条命令会说明打不了包并退出 |
+| 双击启动，不需要终端。启动时安装或刷新用户级 LaunchAgent（`~/Library/LaunchAgents`，不是 LaunchDaemon），用绝对路径跑打包进去的守护进程，然后连上 | Mac |
+| 状态在重启后还在：SQLite 在 `~/Library/Application Support/mufu` | 日志本身用替身测。这个目录要 Mac |
+| README 写了 clone、`pnpm install`、`pnpm start`、`pnpm build:mac`、第一次右键打开或 `xattr -dr com.apple.quarantine`、怎么卸 LaunchAgent | 替身（读文档） |
+
+## F. 删掉阶段 1 不用的东西
+
+| 项 | 在哪验 |
+| --- | --- |
+| 没有对话、自动化、扩展、模板编辑器、费用、并发设置的页面、路由、开关或空组件 | 替身 |
+| `pnpm check` 含 ESLint、knip、depcheck、dependency-cruiser | 替身 |
+| AgentAdapter 仍只有 Codex 和 Claude 两个实现，外加测试用的 fake。YAML 模板引擎同时跑两份模板，引擎里没有按模板名分支 | 替身 |
+
+## 另外要过的
+
+| 项 | 在哪验 |
+| --- | --- |
+| 样式按 ui-min3 / ui-board4，颜色只在 Tailwind `@theme` | 替身。和样稿的差别写在交付说明里 |
+| 重启后状态还在 | 替身（同一 SQLite 再打开）。Mac 上的 Application Support 路径要真机 |
+| README 里的构建步骤 | 替身（读文档）。`.app` 要 Mac |
+| 双击 `.app` 能起来，守护进程自动启动 | Mac |
+
+## 架构（对照代码，不是点界面）
+
+- `packages/core` 不引用 Electron、SQLite、gh、适配器。端口在 core，实现在外面。
+- dependency-cruiser 禁止包环，并卡着 core / adapters / daemon / cli / app 的方向，以及界面里 modules、common、api 的方向。
+- 适配器对外只有 `startSession`。订阅检查、去掉环境里的 key、找二进制、恢复和中断都在实现里。
+- 事件日志只追加，只有守护进程在写。事件带 `schemaVersion`。界面状态从事件折出来。
+- `docs/glossary.md` 里的词和代码标识符一致。
+- 界面目录是 modules / common / api / store。只有 `api/client` 连守护进程。服务端数据用 TanStack Query，加载、空、错都有。

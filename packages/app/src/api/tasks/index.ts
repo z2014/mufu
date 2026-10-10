@@ -7,7 +7,7 @@ export { DaemonError };
 
 const taskStatusSchema = z.enum(['queued', 'running', 'needs_you', 'to_review', 'done']);
 
-export const taskViewSchema = z.object({
+const taskViewSchema = z.object({
   id: z.string(),
   seq: z.number(),
   title: z.string(),
@@ -95,7 +95,7 @@ const doctorSchema = z.object({
   note: z.string(),
 });
 
-export type DoctorView = z.infer<typeof doctorSchema>;
+type DoctorView = z.infer<typeof doctorSchema>;
 
 const workflowSchema = z.object({
   id: z.string(),
@@ -111,7 +111,7 @@ const workflowSchema = z.object({
   ),
 });
 
-export type WorkflowChoice = z.infer<typeof workflowSchema>;
+type WorkflowChoice = z.infer<typeof workflowSchema>;
 
 export const taskKeys = {
   list: ['tasks', 'list'] as const,

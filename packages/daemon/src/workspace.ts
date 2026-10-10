@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -33,8 +32,4 @@ async function initScratch(dataDir: string, taskId: string): Promise<string> {
   await git(['init'], root);
   await git(['commit', '--allow-empty', '-m', 'init'], root);
   return root;
-}
-
-export function scratchId(): string {
-  return randomUUID();
 }

@@ -157,9 +157,3 @@ export function createClaudeAdapter(options?: {
     },
   };
 }
-
-export function refuseClaudeBeforePrompt(apiKeySource: string | undefined): SubscriptionRefused | null {
-  const subscription = subscriptionFromClaudeInit(apiKeySource);
-  if (subscription.ok) return null;
-  return new SubscriptionRefused('claude', subscription.source);
-}

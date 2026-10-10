@@ -1,4 +1,10 @@
+import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
+
 import { assertTransition, type DomainEvent, type TaskStatus, type TaskView, type Workflow } from './model.ts';
+
+export function eventSchemaVersion(event: DomainEvent): number {
+  return event.schemaVersion ?? EVENT_SCHEMA_VERSION;
+}
 
 function str(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
@@ -25,6 +31,10 @@ export function foldTask(events: DomainEvent[], taskId: string): TaskView | null
 }
 
 function apply(map: Map<string, TaskView>, event: DomainEvent): void {
+  const version = eventSchemaVersion(event);
+  if (version !== EVENT_SCHEMA_VERSION) {
+    throw new Error(`不认识的事件版本 ${version}`);
+  }
   if (event.type === 'task.created') {
     if (!event.taskId) throw new Error('task.created 缺少 taskId');
     const workflow = workflowOf(event.payload);

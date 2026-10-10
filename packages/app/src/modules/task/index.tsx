@@ -24,9 +24,6 @@ import { usePreferences } from '@/store/preferences';
 const nav = [
   { label: '新任务', icon: '＋', action: 'create' as const },
   { label: '任务', icon: '▦', action: 'board' as const },
-  { label: '对话', icon: '◌', action: 'none' as const },
-  { label: '自动化', icon: '◷', action: 'none' as const },
-  { label: '扩展', icon: '⊞', action: 'none' as const },
 ];
 
 export function Component() {
@@ -101,7 +98,6 @@ export function Component() {
             key={item.label}
             type="button"
             className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left"
-            aria-disabled={item.action === 'none'}
             onClick={() => {
               if (item.action === 'board') void navigate('/');
               if (item.action === 'create') setOpen(true);
