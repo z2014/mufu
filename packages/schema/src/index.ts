@@ -21,6 +21,7 @@ export const workflowSchema = z.object({
         id: z.string().min(1),
         title: z.string().min(1),
         gate: z.enum(['final', 'stage']).optional(),
+        reject_to: z.string().min(1).optional(),
         agent: z.enum(['codex', 'claude']).optional(),
       }),
     )

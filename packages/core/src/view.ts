@@ -3,6 +3,8 @@
  */
 export { PRODUCT_NAME } from './product.ts';
 export { columnOf, sortInColumn, MAX_ATTEMPTS, MAX_PINS_PER_STAGE } from './model.ts';
+export { mergeFailureCopy } from './github.ts';
+export type { Mergeability, MergeFailureReason } from './github.ts';
 export type {
   ArtifactView,
   Attention,
