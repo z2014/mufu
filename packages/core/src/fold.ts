@@ -1,7 +1,15 @@
 import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
-import { LEAD_PIN_AUTHOR } from './agent.ts';
-import { assertTransition, type DomainEvent, type TaskStatus, type TaskView, type Workflow } from './model.ts';
+import { LEAD_PIN_AUTHOR, displayAuthor } from './agent.ts';
+import type { Mergeability } from './github.ts';
+import {
+  assertTransition,
+  stageAfterReject,
+  type DomainEvent,
+  type TaskStatus,
+  type TaskView,
+  type Workflow,
+} from './model.ts';
 
 export function eventSchemaVersion(event: DomainEvent): number {
   return event.schemaVersion ?? EVENT_SCHEMA_VERSION;
@@ -60,6 +68,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       runs: 0,
       workspacePath: null,
       ci: null,
+      runStartedAt: null,
       updatedAt: event.at,
     });
     return;
@@ -88,6 +97,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       break;
     case 'run.started':
       task.runs += 1;
+      task.runStartedAt = event.at;
       break;
     case 'attempt.counted':
       task.attempts = Number(payload.attempt);
@@ -102,14 +112,18 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       }
       break;
     }
-    case 'agent.message':
+    case 'agent.message': {
+      const raw = str(payload, 'author');
+      const kind = raw === 'codex' || raw === 'claude' ? raw : null;
+      if (kind) task.agentKind = kind;
       task.messages.push({
         id: event.id,
         role: payload.role === 'lead' || payload.role === 'system' || payload.role === 'user' ? payload.role : 'agent',
-        author: str(payload, 'author'),
+        author: displayAuthor(raw),
         text: str(payload, 'text'),
       });
       break;
+    }
     case 'gate.opened':
       task.pendingGate = {
         id: str(payload, 'gateId'),
@@ -122,6 +136,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       break;
     case 'gate.resolved':
       if (task.pendingGate?.id === payload.gateId) task.pendingGate = null;
+      if (payload.decision === 'reject') task.stageId = stageAfterReject(task.workflow, task.stageId);
       break;
     case 'pin.added': {
       if (payload.author !== LEAD_PIN_AUTHOR) break;
@@ -159,9 +174,14 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       const pr = Number(payload.pr);
       const { state } = payload;
       if (!Number.isInteger(pr)) break;
+      const mergeable: Mergeability =
+        payload.mergeable === 'clean' || payload.mergeable === 'conflict' ? payload.mergeable : 'unknown';
       task.ci = {
         pr,
         state: state === 'passed' || state === 'failed' || state === 'pending' ? state : 'pending',
+        mergeable,
+        additions: typeof payload.additions === 'number' ? payload.additions : null,
+        deletions: typeof payload.deletions === 'number' ? payload.deletions : null,
       };
       break;
     }

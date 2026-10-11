@@ -1,0 +1,25 @@
+appId: com.mufu.app
+productName: mufu
+directories:
+  output: ../../release
+files:
+  - dist/**/*
+  - dist-electron/main.js
+  - dist-electron/preload.js
+  - dist-electron/launch-agent.js
+  - package.json
+extraResources:
+  - from: resources/daemon.cjs
+    to: daemon.cjs
+  - from: resources/workflows
+    to: workflows
+  - from: resources/node_modules
+    to: node_modules
+mac:
+  identity: null
+  category: public.app-category.developer-tools
+  target:
+    - target: dir
+      arch:
+        - universal
+npmRebuild: false

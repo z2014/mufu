@@ -6,6 +6,8 @@ export { DaemonError };
 
 const checkItemSchema = z.object({
   name: z.enum(['installed', 'logged_in', 'subscription']),
+  dependsOn: z.enum(['installed', 'logged_in']).nullable(),
+  status: z.enum(['ok', 'failed', 'skipped']),
   ok: z.boolean(),
   detail: z.string(),
   fix: z.string().nullable(),

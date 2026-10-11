@@ -47,6 +47,7 @@ export function loadWorkflows(dir: string): WorkflowCatalog {
         id: stage.id,
         title: stage.title,
         gate: stage.gate,
+        rejectTo: stage.reject_to,
         agent: stage.agent,
       })),
     };

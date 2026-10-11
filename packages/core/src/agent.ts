@@ -74,8 +74,29 @@ export class SubscriptionRefused extends Error {
 /** 日志里 pin 的 author。fold 丢掉任何不是这个作者的重点。 */
 export const LEAD_PIN_AUTHOR = 'lead';
 
-/** 阶段 1 的桩给每个完成阶段钉的正文和理由。 */
+/** 阶段 1 的桩给每个完成阶段钉的正文前缀。 */
 export const STAGE_DONE_PIN = '阶段完成';
+
+/** 事件里的作者写成 codex 或 claude。已经是这两个词时保持原样。 */
+export function concreteAuthor(author: string): string {
+  if (author === 'codex' || author === 'Codex') return 'codex';
+  if (author === 'claude' || author === 'Claude') return 'claude';
+  return author;
+}
+
+/** 界面上的名字。只从事件里的作者来，不发明「代理」。 */
+export function displayAuthor(author: string): string {
+  if (author === 'codex') return 'Codex';
+  if (author === 'claude') return 'Claude';
+  return author;
+}
+
+/** 桩钉在重点条上的句子：阶段名，加上被钉消息开头大约 30 个字。 */
+export function stageDoneText(stageTitle: string, messageText: string): string {
+  const opening = Array.from(messageText).slice(0, 30).join('').trim();
+  if (opening.length === 0) return `${STAGE_DONE_PIN}：${stageTitle}`;
+  return `${STAGE_DONE_PIN}：${stageTitle} — ${opening}`;
+}
 
 export function leadIntro(workflowTitle: string, stageTitles: string[]): string {
   const steps = stageTitles.join('、');

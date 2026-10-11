@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts", "vitest.config.ts"]
+  "include": ["scripts/**/*.ts", "vitest.config.ts", "packages/app/electron/launch-agent.test.ts"]
 }
