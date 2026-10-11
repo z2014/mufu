@@ -11,6 +11,7 @@ export type {
   Attention,
   CiState,
   Column,
+  DiffView,
   GateView,
   MessageView,
   PinView,

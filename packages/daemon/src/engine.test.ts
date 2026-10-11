@@ -73,6 +73,13 @@ function github(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): GitH
       if (behavior === 'ci_failed') return Promise.resolve(inspected(9, 'failed'));
       return Promise.resolve(inspected(9, 'passed'));
     },
+    diffStat() {
+      return Promise.resolve({
+        files: [{ path: 'src/a.ts', additions: 4, deletions: 1 }],
+        additions: 4,
+        deletions: 1,
+      });
+    },
     merge() {
       this.merges += 1;
       if (behavior === 'conflict') return Promise.reject(new MergeFailure('conflict', 'cannot be cleanly created'));
@@ -277,6 +284,112 @@ describe('merge completes the task', () => {
       const rolled = await until(engine, created.id, (task) => task.pendingGate === null);
       expect(rolled.stageId).toBe('fix');
       expect(rolled.workflow.stages.find((stage) => stage.id === 'accept')?.rejectTo).toBe('fix');
+    } finally {
+      engine.shutdown();
+      log.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('已经在合并时拒绝再来一次', async () => {
+    const { engine, gh, repo, close } = await boot('ok');
+    let release: () => void = () => undefined;
+    gh.merge = () => {
+      gh.merges += 1;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    };
+    try {
+      const created = await engine.createTask({ title: '合并中', prompt: '过', repoPath: repo });
+      const waiting = await until(engine, created.id, (task) => task.pendingGate !== null);
+      engine.resolveGate(waiting.pendingGate!.id, 'approve');
+      const pending = await until(engine, created.id, (task) => task.merging);
+      expect(pending.merging).toBe(true);
+      await expect(engine.requestMerge(created.id)).rejects.toThrow('已经在合并');
+      expect(gh.merges).toBe(1);
+      release();
+      const done = await until(engine, created.id, (task) => task.status === 'done');
+      expect(done.merging).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it('PR 阶段结束时把 gh pr diff --stat 写成改动', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'mufu-diff-'));
+    const repo = await initRepo(home);
+    const dir = join(home, 'workflows');
+    mkdirSync(dir);
+    writeFileSync(
+      join(dir, 'pr.yaml'),
+      [
+        'id: pr',
+        'title: 改动',
+        'default: true',
+        'done_when: pr_merged',
+        'stages:',
+        '  - id: pr',
+        '    title: PR 与 CI',
+        '    agent: codex',
+        '  - id: accept',
+        '    title: 验收',
+        '    gate: final',
+        '    agent: claude',
+        '',
+      ].join('\n'),
+    );
+    const log = new SqliteEventLog(join(home, 'events.sqlite'));
+    const gh = github('ok');
+    let calls = 0;
+    const diffStat = gh.diffStat.bind(gh);
+    gh.diffStat = (repoPath) => {
+      calls += 1;
+      return diffStat(repoPath);
+    };
+    const engine = createTaskEngine({
+      home,
+      log,
+      workflows: loadWorkflows(dir),
+      adapters: {
+        codex: {
+          kind: 'codex',
+          startSession(input) {
+            return Promise.resolve({
+              sessionId: 'codex-session',
+              events: (async function* events() {
+                if (input.stageId === 'pr') yield { type: 'artifact' as const, title: 'PR #50', detail: '3 个文件' };
+                yield { type: 'completed' as const, ok: true };
+              })(),
+              decide() {
+                return Promise.resolve();
+              },
+              interrupt() {
+                return Promise.resolve();
+              },
+            });
+          },
+        },
+        claude: adapter(),
+      },
+      fixture: null,
+      github: gh,
+      agent: 'codex',
+    });
+    try {
+      const created = await engine.createTask({ title: '看改动', prompt: '过', repoPath: repo });
+      const waiting = await until(engine, created.id, (task) => task.diff !== null && task.pendingGate !== null);
+      expect(calls).toBe(1);
+      expect(waiting.diff).toEqual({
+        pr: 50,
+        fileCount: 1,
+        additions: 4,
+        deletions: 1,
+        files: [{ path: 'src/a.ts', additions: 4, deletions: 1 }],
+      });
+      const again = await until(engine, created.id, (task) => task.stageId === 'accept');
+      expect(again.diff?.fileCount).toBe(1);
+      expect(calls).toBe(1);
     } finally {
       engine.shutdown();
       log.close();

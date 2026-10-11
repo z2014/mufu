@@ -52,10 +52,26 @@ export type PinView = {
   messageId?: string;
 };
 
+export type DiffFileView = {
+  path: string;
+  additions: number;
+  deletions: number;
+};
+
+/** PR 阶段结束时写下的改动。数字只来自这一条事件。 */
+export type DiffView = {
+  pr: number | null;
+  fileCount: number;
+  additions: number;
+  deletions: number;
+  files: DiffFileView[];
+};
+
 export type ArtifactView = {
   id: string;
   title: string;
   detail: string;
+  kind?: 'diff';
 };
 
 export type MessageView = {
@@ -85,6 +101,10 @@ export type TaskView = {
   attempts: number;
   runs: number;
   workspacePath: string | null;
+  /** `merge_requested` 已写下，还没有成功或失败。重启后仍然成立。 */
+  merging: boolean;
+  /** PR 阶段结束时的文件列表。没有这条事件就是 null。 */
+  diff: DiffView | null;
   /** 待验收卡片上的 PR。只来自守护进程写下的事件。 */
   ci: {
     pr: number;

@@ -27,7 +27,7 @@ import {
 
 import { GateBroker, type Decision, type GateResolution } from './broker.ts';
 import { holdAwake } from './sleep.ts';
-import { assertGitRepo, createWorkspace } from './workspace.ts';
+import { checkWorkdir, createWorkspace } from './workspace.ts';
 import type { ListedWorkflow, WorkflowCatalog } from './workflows.ts';
 
 type EventLog = {
@@ -61,6 +61,7 @@ export type TaskEngine = {
   events(taskId: string): DomainEvent[];
   note(taskId: string, text: string): TaskView;
   resolveGate(gateId: string, decision: Decision, comment?: string): TaskView;
+  requestMerge(taskId: string): Promise<void>;
   readPins(taskId: string): TaskView;
   workflows(): ListedWorkflow[];
   shutdown(): void;
@@ -70,6 +71,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
   const { log, github } = options;
   const broker = new GateBroker();
   const running = new Set<string>();
+  const mergeLocks = new Set<string>();
   const live = new Map<string, AgentSession>();
   let awake: { stop(): void } | null = null;
 
@@ -116,6 +118,35 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       log.append({ taskId, type: 'environment.failed', payload: { message, tool, source: 'launch' } });
     }
     setStatus(taskId, 'needs_you');
+  }
+
+  /** PR 阶段结束时把 `gh pr diff --stat` 写成产物。已经有改动就不再打一次。 */
+  async function recordDiff(taskId: string): Promise<void> {
+    const task = one(taskId);
+    if (!task || task.diff) return;
+    const repo = task.workspacePath;
+    if (!repo) return;
+    try {
+      const stat = await github.diffStat(repo);
+      if (stat.files.length === 0) return;
+      const lines = stat.files.map((file) => `${file.path}  +${file.additions} −${file.deletions}`);
+      log.append({
+        taskId,
+        type: 'artifact.added',
+        payload: {
+          artifactId: randomUUID(),
+          title: '改动',
+          detail: lines.join('\n'),
+          kind: 'diff',
+          pr: prFromArtifacts(task),
+          files: stat.files,
+          additions: stat.additions,
+          deletions: stat.deletions,
+        },
+      });
+    } catch {
+      // 读不到改动不挡任务。界面只在有这条事件时显示「看改动」。
+    }
   }
 
   function prFromArtifacts(task: TaskView): number | null {
@@ -171,33 +202,40 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
 
   async function completeByMerge(taskId: string): Promise<void> {
     const task = one(taskId);
-    if (!task || task.status === 'done' || task.status === 'needs_you') return;
-    const repo = task.workspacePath ?? options.home;
-    let inspected: Awaited<ReturnType<GitHub['inspect']>>;
+    if (!task || task.status === 'done') return;
+    if (task.merging || mergeLocks.has(taskId)) throw new Error('已经在合并');
+    if (task.status === 'needs_you') return;
+    mergeLocks.add(taskId);
     try {
-      inspected = await github.inspect(repo);
-    } catch {
-      failMerge(taskId, null, 'environment');
-      return;
+      const repo = task.workspacePath ?? options.home;
+      let inspected: Awaited<ReturnType<GitHub['inspect']>>;
+      try {
+        inspected = await github.inspect(repo);
+      } catch {
+        failMerge(taskId, null, 'environment');
+        return;
+      }
+      const pr = inspected.pr ?? prFromArtifacts(task);
+      if (!pr) {
+        failMerge(taskId, null, 'environment');
+        return;
+      }
+      log.append({ taskId, type: 'merge_requested', payload: { pr } });
+      if (inspected.ci === 'failed') {
+        failMerge(taskId, pr, 'ci_failed');
+        return;
+      }
+      try {
+        await github.merge({ repoPath: repo, pr });
+      } catch (error) {
+        failMerge(taskId, pr, error instanceof MergeFailure ? error.reason : 'environment');
+        return;
+      }
+      log.append({ taskId, type: 'merge_succeeded', payload: { pr } });
+      setStatus(taskId, 'done');
+    } finally {
+      mergeLocks.delete(taskId);
     }
-    const pr = inspected.pr ?? prFromArtifacts(task);
-    if (!pr) {
-      failMerge(taskId, null, 'environment');
-      return;
-    }
-    log.append({ taskId, type: 'merge_requested', payload: { pr } });
-    if (inspected.ci === 'failed') {
-      failMerge(taskId, pr, 'ci_failed');
-      return;
-    }
-    try {
-      await github.merge({ repoPath: repo, pr });
-    } catch (error) {
-      failMerge(taskId, pr, error instanceof MergeFailure ? error.reason : 'environment');
-      return;
-    }
-    log.append({ taskId, type: 'merge_succeeded', payload: { pr } });
-    setStatus(taskId, 'done');
   }
 
   async function consume(taskId: string, session: AgentSession): Promise<'ok' | 'stop'> {
@@ -331,6 +369,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       const after = one(taskId);
       if (!after || after.status === 'needs_you' || after.status === 'done') return;
       pinCompletedStage(taskId, after.stageId);
+      if (after.stageId === 'pr') await recordDiff(taskId);
       const index = after.workflow.stages.findIndex((item) => item.id === after.stageId);
       const next = after.workflow.stages[index + 1];
       if (!next) {
@@ -418,7 +457,10 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     const current = one(taskId);
     if (!current) return;
     if (event.type === 'stage') {
-      if (event.stageId !== current.stageId) pinCompletedStage(taskId, current.stageId);
+      if (event.stageId !== current.stageId) {
+        if (current.stageId === 'pr') await recordDiff(taskId);
+        pinCompletedStage(taskId, current.stageId);
+      }
       log.append({ taskId, type: 'stage.entered', payload: { stageId: event.stageId } });
     } else if (event.type === 'message') {
       log.append({
@@ -505,8 +547,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       }),
     };
     const repoPath = input.repoPath?.trim() ?? '';
-    if (!repoPath) throw new Error('先选择工作目录');
-    await assertGitRepo(repoPath);
+    await checkWorkdir(repoPath);
     const taskId = randomUUID();
     const seq = views().length + 1;
     log.append({
@@ -564,6 +605,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     events: (taskId) => log.readAll().filter((event) => event.taskId === taskId),
     note,
     resolveGate,
+    requestMerge: completeByMerge,
     readPins(taskId) {
       log.append({ taskId, type: 'pin.read', payload: {} });
       const task = one(taskId);

@@ -5,6 +5,7 @@ import {
   MergeFailure,
   mergeFailureCopy,
   type CiState,
+  type DiffStat,
   type GitHub,
   type Mergeability,
   type MergeFailureReason,
@@ -13,11 +14,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-type GhExec = (
-  file: string,
-  args: string[],
-  options: { cwd?: string },
-) => Promise<{ stdout: string; stderr: string }>;
+type GhExec = (file: string, args: string[], options: { cwd?: string }) => Promise<{ stdout: string; stderr: string }>;
 
 /** CI 字样先于笼统的 not mergeable。认不出来的都算环境问题，不计入尝试。 */
 export function classifyMergeFailure(text: string): MergeFailureReason {
@@ -96,6 +93,35 @@ function mergeabilityOf(value: unknown): Mergeability {
   return 'unknown';
 }
 
+/** 解析 `git diff --stat` / `gh pr diff --stat`。汇总行的 +/- 是准的，文件行用柱状图。 */
+export function parseDiffStat(stdout: string): DiffStat {
+  const files: DiffStat['files'] = [];
+  let additions = 0;
+  let deletions = 0;
+  for (const line of stdout.split('\n')) {
+    const summary = line.match(/(\d+)\s+insertions?\(\+\)(?:,\s*(\d+)\s+deletions?\(-\))?/);
+    if (summary?.[1]) {
+      additions = Number(summary[1]);
+      deletions = summary[2] ? Number(summary[2]) : 0;
+      continue;
+    }
+    if (/deletions?\(-\)/.test(line) && !/insertions?\(\+\)/.test(line)) {
+      const only = line.match(/(\d+)\s+deletions?\(-\)/);
+      if (only?.[1]) deletions = Number(only[1]);
+      continue;
+    }
+    const file = line.match(/^\s*(.+?)\s+\|\s+(\d+)\s+([+-]*)\s*$/);
+    if (!file?.[1] || !file[2]) continue;
+    const bar = file[3] ?? '';
+    const plus = (bar.match(/\+/g) ?? []).length;
+    const minus = (bar.match(/-/g) ?? []).length;
+    const total = Number(file[2]);
+    if (plus + minus === total) files.push({ path: file[1].trim(), additions: plus, deletions: minus });
+    else files.push({ path: file[1].trim(), additions: total, deletions: 0 });
+  }
+  return { files, additions, deletions };
+}
+
 function countOf(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -136,6 +162,17 @@ export function createGhClient(deps?: { which?: () => Promise<string | null>; ex
         };
       } catch {
         return unknownPull;
+      }
+    },
+    async diffStat(repoPath) {
+      const bin = await which();
+      const empty: DiffStat = { files: [], additions: 0, deletions: 0 };
+      if (!bin) return empty;
+      try {
+        const { stdout } = await run(bin, ['pr', 'diff', '--stat'], { cwd: repoPath });
+        return parseDiffStat(stdout);
+      } catch {
+        return empty;
       }
     },
     async merge({ repoPath, pr }) {

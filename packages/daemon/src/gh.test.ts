@@ -1,7 +1,7 @@
 import { MergeFailure } from '@mufu/core';
 import { describe, expect, it } from 'vitest';
 
-import { ciStateFromRollup, classifyMergeFailure, createGhClient } from './gh.ts';
+import { ciStateFromRollup, classifyMergeFailure, createGhClient, parseDiffStat } from './gh.ts';
 
 describe('classifyMergeFailure', () => {
   it('reads CI before a generic not-mergeable line, and leaves auth as environment', () => {
@@ -23,6 +23,24 @@ describe('ciStateFromRollup', () => {
     expect(ciStateFromRollup([{ conclusion: 'SUCCESS' }, { conclusion: 'SUCCESS' }])).toBe('passed');
     expect(ciStateFromRollup([{ conclusion: 'SUCCESS' }, { conclusion: 'FAILURE' }])).toBe('failed');
     expect(ciStateFromRollup([{ conclusion: 'SUCCESS' }, { status: 'IN_PROGRESS' }])).toBe('pending');
+  });
+});
+
+describe('parseDiffStat', () => {
+  it('读出文件列表和汇总的增减', () => {
+    const stat = parseDiffStat(
+      [
+        ' src/items.ts       | 10 ++++++----',
+        ' src/items.test.ts  |  8 ++++++++',
+        ' 2 files changed, 14 insertions(+), 4 deletions(-)',
+      ].join('\n'),
+    );
+    expect(stat.files).toEqual([
+      { path: 'src/items.ts', additions: 6, deletions: 4 },
+      { path: 'src/items.test.ts', additions: 8, deletions: 0 },
+    ]);
+    expect(stat.additions).toBe(14);
+    expect(stat.deletions).toBe(4);
   });
 });
 
@@ -68,5 +86,21 @@ describe('createGhClient', () => {
     });
     expect(calls[0]?.[0]).toBe('/usr/bin/gh');
     expect(calls[1]).toEqual(['/usr/bin/gh', 'pr', 'merge', '12', '--merge']);
+
+    const diff = createGhClient({
+      which: () => Promise.resolve('/usr/bin/gh'),
+      exec: (_file, args) => {
+        expect(args).toEqual(['pr', 'diff', '--stat']);
+        return Promise.resolve({
+          stdout: ' src/a.ts | 2 ++\n 1 file changed, 2 insertions(+)\n',
+          stderr: '',
+        });
+      },
+    });
+    await expect(diff.diffStat('/work')).resolves.toEqual({
+      files: [{ path: 'src/a.ts', additions: 2, deletions: 0 }],
+      additions: 2,
+      deletions: 0,
+    });
   });
 });

@@ -153,6 +153,48 @@ describe('fold', () => {
     expect(tasks[0]?.agentKind).toBe('codex');
   });
 
+  it('合并请求还没结果时，重放仍是合并中', () => {
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({ type: 'task.status', payload: { status: 'running' } }),
+      ev({ type: 'merge_requested', payload: { pr: 50 } }),
+    ]);
+    expect(tasks[0]?.merging).toBe(true);
+    expect(tasks[0]?.status).toBe('running');
+    const finished = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({ type: 'merge_requested', payload: { pr: 50 } }),
+      ev({ type: 'merge_succeeded', payload: { pr: 50 } }),
+    ]);
+    expect(finished[0]?.merging).toBe(false);
+  });
+
+  it('改动产物折成文件列表', () => {
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({
+        type: 'artifact.added',
+        payload: {
+          artifactId: 'd1',
+          title: '改动',
+          detail: 'src/a.ts  +4 −1',
+          kind: 'diff',
+          pr: 50,
+          files: [{ path: 'src/a.ts', additions: 4, deletions: 1 }],
+          additions: 4,
+          deletions: 1,
+        },
+      }),
+    ]);
+    expect(tasks[0]?.diff).toEqual({
+      pr: 50,
+      fileCount: 1,
+      additions: 4,
+      deletions: 1,
+      files: [{ path: 'src/a.ts', additions: 4, deletions: 1 }],
+    });
+  });
+
   it('缺省事件版本是 1，别的版本不折叠', () => {
     expect(eventSchemaVersion(ev({ type: 'task.status', payload: { status: 'running' } }))).toBe(EVENT_SCHEMA_VERSION);
     expect(() =>

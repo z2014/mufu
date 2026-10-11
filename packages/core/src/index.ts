@@ -44,6 +44,6 @@ export type {
   StartSession,
 } from './agent.ts';
 export { MergeFailure, mergeFailureCopy } from './github.ts';
-export type { GitHub, MergeFailureReason, Mergeability, PullInspect } from './github.ts';
+export type { DiffFile, DiffStat, GitHub, MergeFailureReason, Mergeability, PullInspect } from './github.ts';
 export { OPENROUTER_ACCOUNT } from './secret.ts';
 export type { SecretStore } from './secret.ts';

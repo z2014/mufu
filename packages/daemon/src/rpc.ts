@@ -4,6 +4,7 @@ import type { RpcRequest } from '@mufu/schema';
 import type { DoctorReport } from './doctor.ts';
 import type { TaskEngine } from './engine.ts';
 import { assertOpenRouterAccount } from './secrets.ts';
+import { checkWorkdir } from './workspace.ts';
 
 export function createRpc(deps: {
   engine: TaskEngine;
@@ -32,6 +33,9 @@ export function createRpc(deps: {
         await deps.secrets.remove(account);
         return { account, set: false };
       }
+      case 'workdir.check':
+        await checkWorkdir(typeof params.repoPath === 'string' ? params.repoPath : undefined);
+        return { ok: true };
       case 'task.create':
         return engine.createTask({
           title: String(params.title ?? ''),

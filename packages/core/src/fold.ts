@@ -23,6 +23,30 @@ function str(payload: Record<string, unknown>, key: string): string {
   return value;
 }
 
+function diffOf(payload: Record<string, unknown>): TaskView['diff'] {
+  const files = Array.isArray(payload.files)
+    ? payload.files.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const row = item as { path?: unknown; additions?: unknown; deletions?: unknown };
+        if (typeof row.path !== 'string' || row.path.length === 0) return [];
+        return [
+          {
+            path: row.path,
+            additions: typeof row.additions === 'number' ? row.additions : 0,
+            deletions: typeof row.deletions === 'number' ? row.deletions : 0,
+          },
+        ];
+      })
+    : [];
+  return {
+    pr: typeof payload.pr === 'number' ? payload.pr : null,
+    fileCount: files.length,
+    additions: typeof payload.additions === 'number' ? payload.additions : 0,
+    deletions: typeof payload.deletions === 'number' ? payload.deletions : 0,
+    files,
+  };
+}
+
 function workflowOf(payload: Record<string, unknown>): Workflow {
   const value = payload.workflow;
   if (!value || typeof value !== 'object') throw new Error('事件缺少 workflow');
@@ -67,6 +91,8 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       attempts: 0,
       runs: 0,
       workspacePath: null,
+      merging: false,
+      diff: null,
       ci: null,
       runStartedAt: null,
       updatedAt: event.at,
@@ -156,13 +182,18 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
         if (payload.pinId === undefined || pin.id === payload.pinId) pin.read = true;
       }
       break;
-    case 'artifact.added':
+    case 'artifact.added': {
+      const kind = payload.kind === 'diff' ? 'diff' : undefined;
+      const detail = typeof payload.detail === 'string' ? payload.detail : '';
+      if (kind === 'diff') task.diff = diffOf(payload);
       task.artifacts.push({
         id: str(payload, 'artifactId'),
         title: str(payload, 'title'),
-        detail: typeof payload.detail === 'string' ? payload.detail : '',
+        detail,
+        ...(kind ? { kind } : {}),
       });
       break;
+    }
     case 'environment.failed':
       task.attention = {
         message: str(payload, 'message'),
@@ -185,7 +216,14 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       };
       break;
     }
+    case 'merge_requested':
+      task.merging = true;
+      break;
+    case 'merge_succeeded':
+      task.merging = false;
+      break;
     case 'merge_failed':
+      task.merging = false;
       task.attention = {
         message: typeof payload.message === 'string' && payload.message.length > 0 ? payload.message : '合并失败',
         source: typeof payload.reason === 'string' ? payload.reason : undefined,

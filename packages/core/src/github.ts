@@ -10,6 +10,19 @@ export type PullInspect = {
   deletions: number | null;
 };
 
+export type DiffFile = {
+  path: string;
+  additions: number;
+  deletions: number;
+};
+
+/** `gh pr diff --stat` 解析后的文件列表。界面只读事件，不自己跑 git。 */
+export type DiffStat = {
+  files: DiffFile[];
+  additions: number;
+  deletions: number;
+};
+
 export type MergeFailureReason = 'conflict' | 'ci_failed' | 'environment';
 
 /** 界面只按类别显示这三句，不解析命令输出。 */
@@ -32,5 +45,7 @@ export class MergeFailure extends Error {
 /** 只有守护进程在人点了验收并合并之后才能调用。代理拿不到这个接口。 */
 export interface GitHub {
   inspect(repoPath: string): Promise<PullInspect>;
+  /** PR 阶段结束时调用。命令是 `gh pr diff --stat`。 */
+  diffStat(repoPath: string): Promise<DiffStat>;
   merge(input: { repoPath: string; pr: number }): Promise<void>;
 }

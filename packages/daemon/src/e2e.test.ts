@@ -18,6 +18,16 @@ const fixturePath = join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl');
 
 const github: GitHub = {
   inspect: () => Promise.resolve({ pr: 50, ci: 'passed', mergeable: 'clean', additions: 38, deletions: 12 }),
+  diffStat: () =>
+    Promise.resolve({
+      files: [
+        { path: 'src/items.ts', additions: 20, deletions: 4 },
+        { path: 'src/items.test.ts', additions: 18, deletions: 0 },
+        { path: 'src/api.ts', additions: 0, deletions: 8 },
+      ],
+      additions: 38,
+      deletions: 12,
+    }),
   merge: () => Promise.resolve(),
 };
 
