@@ -58,3 +58,12 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
 }
+
+/* Tailwind v4 的 border 默认用 currentColor。颜色只在这里指定一次。 */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+}
