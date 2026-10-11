@@ -3,7 +3,7 @@ import type { DiffView } from '@mufu/core/view';
 import { Button } from '@/common/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/common/components/ui/dialog';
 
-export function mergeConfirmTitle(diff: DiffView, fallbackPr: number | null): string {
+function mergeConfirmTitle(diff: DiffView, fallbackPr: number | null): string {
   const pr = diff.pr ?? fallbackPr;
   const number = pr === null ? 'PR' : `PR #${pr}`;
   return `合并 ${number} · ${diff.fileCount} 个文件`;
