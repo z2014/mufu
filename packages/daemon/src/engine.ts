@@ -10,13 +10,14 @@ import {
   foldTask,
   foldTasks,
   LEAD_PIN_AUTHOR,
-  STAGE_DONE_PIN,
+  concreteAuthor,
   leadIntro,
+  mergeFailureCopy,
+  stageDoneText,
   type AgentAdapter,
   type AgentEvent,
   type AgentKind,
   type AgentSession,
-  type CiState,
   type DomainEvent,
   type GitHub,
   type MergeFailureReason,
@@ -26,7 +27,7 @@ import {
 
 import { GateBroker, type Decision } from './broker.ts';
 import { holdAwake } from './sleep.ts';
-import { createWorkspace } from './workspace.ts';
+import { assertGitRepo, createWorkspace } from './workspace.ts';
 import type { ListedWorkflow, WorkflowCatalog } from './workflows.ts';
 
 type EventLog = {
@@ -86,17 +87,19 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     if (!task.workflow.stages.some((stage) => stage.id === stageId)) return;
     const onStage = task.pins.filter((pin) => pin.stageId === stageId);
     if (onStage.some((pin) => pin.author === LEAD_PIN_AUTHOR) || onStage.length >= MAX_PINS_PER_STAGE) return;
-    const messageId = [...task.messages].reverse().find((message) => message.role !== 'user')?.id;
+    const pinned = [...task.messages].reverse().find((message) => message.role !== 'user');
+    const stageTitle = task.workflow.stages.find((stage) => stage.id === stageId)?.title ?? stageId;
+    const text = stageDoneText(stageTitle, pinned?.text ?? '');
     log.append({
       taskId,
       type: 'pin.added',
       payload: {
         pinId: randomUUID(),
-        message: STAGE_DONE_PIN,
-        reason: STAGE_DONE_PIN,
+        message: text,
+        reason: text,
         author: LEAD_PIN_AUTHOR,
         stageId,
-        ...(messageId ? { messageId } : {}),
+        ...(pinned ? { messageId: pinned.id } : {}),
       },
     });
   }
@@ -124,9 +127,10 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     return null;
   }
 
-  function failMerge(taskId: string, pr: number | null, reason: MergeFailureReason, message: string): void {
+  function failMerge(taskId: string, pr: number | null, reason: MergeFailureReason): void {
     const current = one(taskId);
     const attempts = (current?.attempts ?? 0) + 1;
+    const message = mergeFailureCopy(reason);
     log.append({ taskId, type: 'merge_failed', payload: { pr, reason, message } });
     if (countsAsAttempt({ kind: reason, detail: message })) {
       log.append({ taskId, type: 'attempt.counted', payload: { attempt: attempts, reason } });
@@ -149,7 +153,17 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       const inspected = await github.inspect(repo);
       const pr = inspected.pr ?? prFromArtifacts(task);
       if (!pr) return;
-      log.append({ taskId, type: 'ci.reported', payload: { pr, state: inspected.ci } });
+      log.append({
+        taskId,
+        type: 'ci.reported',
+        payload: {
+          pr,
+          state: inspected.ci,
+          mergeable: inspected.mergeable,
+          additions: inspected.additions,
+          deletions: inspected.deletions,
+        },
+      });
     } catch {
       // 查不到 CI 不改任务状态。界面只读已经写下的事件。
     }
@@ -159,31 +173,27 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     const task = one(taskId);
     if (!task || task.status === 'done' || task.status === 'needs_you') return;
     const repo = task.workspacePath ?? options.home;
-    let inspected: { pr: number | null; ci: CiState };
+    let inspected: Awaited<ReturnType<GitHub['inspect']>>;
     try {
       inspected = await github.inspect(repo);
-    } catch (error) {
-      failMerge(taskId, null, 'environment', error instanceof Error ? error.message : String(error));
+    } catch {
+      failMerge(taskId, null, 'environment');
       return;
     }
     const pr = inspected.pr ?? prFromArtifacts(task);
     if (!pr) {
-      failMerge(taskId, null, 'environment', '没有找到 PR');
+      failMerge(taskId, null, 'environment');
       return;
     }
     log.append({ taskId, type: 'merge_requested', payload: { pr } });
     if (inspected.ci === 'failed') {
-      failMerge(taskId, pr, 'ci_failed', 'CI 没过');
+      failMerge(taskId, pr, 'ci_failed');
       return;
     }
     try {
       await github.merge({ repoPath: repo, pr });
     } catch (error) {
-      if (error instanceof MergeFailure) {
-        failMerge(taskId, pr, error.reason, error.message);
-        return;
-      }
-      failMerge(taskId, pr, 'environment', error instanceof Error ? error.message : String(error));
+      failMerge(taskId, pr, error instanceof MergeFailure ? error.reason : 'environment');
       return;
     }
     log.append({ taskId, type: 'merge_succeeded', payload: { pr } });
@@ -369,7 +379,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       log.append({
         taskId,
         type: 'agent.message',
-        payload: { role: 'agent', author: event.author, text: event.text },
+        payload: { role: 'agent', author: concreteAuthor(event.author), text: event.text },
       });
     } else if (event.type === 'system') {
       log.append({ taskId, type: 'agent.message', payload: { role: 'system', author: '系统', text: event.text } });
@@ -455,14 +465,17 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
         return { ...stage, agent: override };
       }),
     };
+    const repoPath = input.repoPath?.trim() ?? '';
+    if (!repoPath) throw new Error('先选择工作目录');
+    await assertGitRepo(repoPath);
     const taskId = randomUUID();
     const seq = views().length + 1;
     log.append({
       taskId,
       type: 'task.created',
-      payload: { seq, title: input.title, prompt: input.prompt, workflow, repoPath: input.repoPath ?? null },
+      payload: { seq, title: input.title, prompt: input.prompt, workflow, repoPath },
     });
-    const path = await createWorkspace(input.repoPath, taskId, options.home);
+    const path = await createWorkspace(repoPath, taskId, options.home);
     log.append({ taskId, type: 'workspace.created', payload: { path } });
     setStatus(taskId, 'running');
     void runTask(taskId);
@@ -490,12 +503,14 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     const session = live.get(taskId);
     const reply = session?.followUp?.(trimmed);
     if (typeof reply === 'string' && reply.length > 0) {
-      const kind = one(taskId)?.agentKind;
-      log.append({
-        taskId,
-        type: 'agent.message',
-        payload: { role: 'agent', author: agentLabel(kind), text: reply },
-      });
+      const author = eventAuthor(one(taskId)?.agentKind);
+      if (author) {
+        log.append({
+          taskId,
+          type: 'agent.message',
+          payload: { role: 'agent', author, text: reply },
+        });
+      }
     }
     const updated = one(taskId);
     if (!updated) throw new Error('没有这个任务');
@@ -529,10 +544,10 @@ function kindFor(stageAgent: AgentKind | undefined, fallback: AgentKind | undefi
   return 'codex';
 }
 
-function agentLabel(kind: string | null | undefined): string {
-  if (kind === 'claude') return 'Claude';
-  if (kind === 'codex') return 'Codex';
-  return '代理';
+function eventAuthor(kind: string | null | undefined): 'codex' | 'claude' | null {
+  if (kind === 'claude' || kind === 'Claude') return 'claude';
+  if (kind === 'codex' || kind === 'Codex') return 'codex';
+  return null;
 }
 
 function stagePrompt(task: TaskView, stage: Workflow['stages'][number]): string {

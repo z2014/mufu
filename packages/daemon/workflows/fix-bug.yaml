@@ -15,4 +15,5 @@ stages:
   - id: accept
     title: 验收
     gate: final
+    reject_to: fix
     agent: claude
