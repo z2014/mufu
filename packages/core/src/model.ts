@@ -1,6 +1,6 @@
 import type { TaskStatus } from '@mufu/schema';
 
-import type { CiState } from './github.ts';
+import type { CiState, Mergeability } from './github.ts';
 
 export type { TaskStatus };
 export type { CiState };
@@ -13,6 +13,8 @@ export type WorkflowStage = {
   id: string;
   title: string;
   gate?: 'final' | 'stage';
+  /** 打回最终门禁时回到的阶段。缺省时用门禁前面最近一个没有门禁的阶段。 */
+  rejectTo?: string;
   /** 这一阶段用哪个代理。任务创建时可以盖掉模板。 */
   agent?: StageAgent;
 };
@@ -83,8 +85,16 @@ export type TaskView = {
   attempts: number;
   runs: number;
   workspacePath: string | null;
-  /** 待验收卡片上的 CI。只来自守护进程写下的事件。 */
-  ci: { pr: number; state: CiState } | null;
+  /** 待验收卡片上的 PR。只来自守护进程写下的事件。 */
+  ci: {
+    pr: number;
+    state: CiState;
+    mergeable: Mergeability;
+    additions: number | null;
+    deletions: number | null;
+  } | null;
+  /** 最近一次运行开始的时间，进行中卡片用来显示已经跑了多久。 */
+  runStartedAt: string | null;
   updatedAt: string;
 };
 
@@ -139,6 +149,23 @@ const allowed: Record<TaskStatus, TaskStatus[]> = {
   to_review: ['done', 'running', 'needs_you'],
   done: [],
 };
+
+/**
+ * 打回之后任务回到的阶段。模板写了 rejectTo 就用它；否则用当前阶段前面最近一个没有门禁的阶段。
+ */
+export function stageAfterReject(workflow: Workflow, stageId: string): string {
+  const index = workflow.stages.findIndex((stage) => stage.id === stageId);
+  const current = index >= 0 ? workflow.stages[index] : undefined;
+  if (current?.rejectTo) {
+    const named = workflow.stages.find((stage) => stage.id === current.rejectTo);
+    if (named) return named.id;
+  }
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const stage = workflow.stages[cursor];
+    if (stage && !stage.gate) return stage.id;
+  }
+  return current?.id ?? workflow.stages[0]?.id ?? stageId;
+}
 
 export function assertTransition(from: TaskStatus, to: TaskStatus): void {
   if (from === to) return;
