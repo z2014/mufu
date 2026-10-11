@@ -36,4 +36,30 @@ export default [
   // 5.2 的 flat 预设叫 recommended-latest，还没有 configs.flat。
   reactHooks.configs['recommended-latest'],
   prettier,
+  {
+    files: ['packages/app/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/#[0-9a-fA-F]{3,8}\\b/]',
+          message: '颜色只用主题变量，不要在组件里写十六进制。',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}\\b/]',
+          message: '颜色只用主题变量，不要在组件里写十六进制。',
+        },
+        {
+          selector:
+            'Literal[value=/(?:bg|text|border|ring|fill|stroke|outline|from|via|to|divide|decoration|caret|accent|shadow)-\\[[^\\]]*#/]',
+          message: '不要用 Tailwind 任意颜色值，改用主题变量。',
+        },
+        {
+          selector:
+            'TemplateElement[value.raw=/(?:bg|text|border|ring|fill|stroke|outline|from|via|to|divide|decoration|caret|accent|shadow)-\\[[^\\]]*#/]',
+          message: '不要用 Tailwind 任意颜色值，改用主题变量。',
+        },
+      ],
+    },
+  },
 ];

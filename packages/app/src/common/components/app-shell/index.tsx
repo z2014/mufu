@@ -18,7 +18,7 @@ export function AppShell({
 }) {
   return (
     <div className="bg-background flex h-dvh flex-col md:flex-row">
-      <nav className="bg-muted flex max-h-52 flex-col overflow-auto border-b px-2 py-2 md:max-h-none md:w-56 md:border-b-0 md:border-r md:px-3 md:py-4">
+      <nav className="bg-sidebar flex max-h-52 flex-col overflow-auto border-b px-2 py-2 md:max-h-none md:w-56 md:border-b-0 md:border-r md:px-3 md:py-4">
         <Link to="/" className="px-2.5 pb-3 text-lg font-bold">
           工作台
         </Link>

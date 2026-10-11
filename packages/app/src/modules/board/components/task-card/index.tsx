@@ -97,7 +97,7 @@ export function TaskCard({
         </span>
         <span className="ml-1 tracking-widest" aria-hidden>
           {task.workflow.stages.map((stage, index) => (
-            <span key={stage.id} className={index <= stageIndex ? 'text-foreground' : 'text-[#ddd]'}>
+            <span key={stage.id} className={index <= stageIndex ? 'text-foreground' : 'text-border'}>
               ●
             </span>
           ))}
@@ -114,7 +114,7 @@ export function TaskCard({
         ) : null}
         <Link
           to={`/task/${task.id}`}
-          className="focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2"
+          className="focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-1"
         >
           {task.title}
         </Link>
@@ -183,7 +183,7 @@ export function TaskCard({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="写一句原因"
-            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 focus-visible:outline-none focus-visible:ring-2"
+            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 focus-visible:outline-none focus-visible:ring-1"
           />
           <button type="submit" className="text-foreground rounded-md border px-2 py-0.5" disabled={pending}>
             送出

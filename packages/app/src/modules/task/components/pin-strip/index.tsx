@@ -20,7 +20,7 @@ export function PinStrip({
           <span>📌 {unread.length} 条重点未读</span>
           <button
             type="button"
-            className="focus-visible:ring-ring ml-auto underline focus-visible:outline-none focus-visible:ring-2"
+            className="focus-visible:ring-ring ml-auto underline focus-visible:outline-none focus-visible:ring-1"
             onClick={onReadAll}
           >
             全部已读
@@ -30,7 +30,7 @@ export function PinStrip({
           <button
             key={pin.id}
             type="button"
-            className="focus-visible:ring-ring flex w-full items-baseline gap-3 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2"
+            className="focus-visible:ring-ring flex w-full items-baseline gap-3 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-1"
             onClick={() => onOpen(pin)}
           >
             <span className="min-w-0 flex-1">{pin.message}</span>

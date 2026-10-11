@@ -153,7 +153,7 @@ export function Component() {
                 />
                 <button
                   type="submit"
-                  className="bg-accent text-muted-foreground focus-visible:ring-ring absolute bottom-2.5 right-3 inline-flex size-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2"
+                  className="bg-accent text-muted-foreground focus-visible:ring-ring absolute bottom-2.5 right-3 inline-flex size-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-1"
                   aria-label="发送"
                   disabled={note.isPending || current.status === 'done'}
                 >

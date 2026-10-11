@@ -19,7 +19,7 @@ function DialogClose(props: React.ComponentProps<typeof DialogPrimitive.Close>) 
 function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+      <DialogPrimitive.Overlay className="bg-foreground/20 fixed inset-0 z-50" />
       <DialogPrimitive.Content
         className={cn(
           'bg-background fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg',
@@ -29,7 +29,7 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
       >
         {children}
         <DialogPrimitive.Close
-          className="focus-visible:ring-ring absolute right-4 top-4 rounded-sm opacity-70 focus-visible:outline-none focus-visible:ring-2"
+          className="focus-visible:ring-ring absolute right-4 top-4 rounded-sm opacity-70 focus-visible:outline-none focus-visible:ring-1"
           aria-label="关闭"
         >
           <X className="size-4" />

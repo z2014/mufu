@@ -52,7 +52,7 @@ export function GateCard({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="写一句原因"
-            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2"
+            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1"
           />
           <Button type="submit" size="sm" variant="outline" disabled={pending}>
             送出打回
