@@ -60,7 +60,7 @@ export async function startDaemon(options: DaemonOptions): Promise<RunningDaemon
     engine,
     secrets,
     loadDoctor: async () => {
-      doctorReport ??= await doctor();
+      doctorReport = await doctor();
       return doctorReport;
     },
   });

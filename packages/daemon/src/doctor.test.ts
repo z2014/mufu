@@ -38,7 +38,7 @@ describe('doctor', () => {
     }
   });
 
-  it('二进制不存在时每一项都给修复提示，并且不调用探针', async () => {
+  it('没装上时登录和订阅记为跳过，并给出官方安装命令', async () => {
     const home = mkdtempSync(join(tmpdir(), 'mufu-doctor-miss-'));
     writeFileSync(join(home, 'marker'), 'x');
     let probed = false;
@@ -60,11 +60,47 @@ describe('doctor', () => {
       });
       expect(probed).toBe(false);
       const codex = report.tools.find((tool) => tool.name === 'codex');
+      const claude = report.tools.find((tool) => tool.name === 'claude');
+      const gh = report.tools.find((tool) => tool.name === 'gh');
       expect(codex?.installed).toBe(false);
-      expect(codex?.items.every((item) => item.ok === false && item.fix)).toBe(true);
-      expect(codex?.items.find((item) => item.name === 'logged_in')?.fix).toBe('运行 codex login');
+      expect(codex?.items.find((item) => item.name === 'installed')).toMatchObject({
+        status: 'failed',
+        fix: 'npm install -g @openai/codex',
+      });
+      expect(codex?.items.find((item) => item.name === 'logged_in')?.status).toBe('skipped');
+      expect(codex?.items.find((item) => item.name === 'subscription')).toMatchObject({
+        status: 'skipped',
+        dependsOn: 'logged_in',
+        fix: null,
+      });
+      expect(claude?.items.find((item) => item.name === 'installed')?.fix).toBe(
+        'curl -fsSL https://claude.ai/install.sh | bash',
+      );
+      expect(gh?.items.find((item) => item.name === 'installed')?.fix).toBe('brew install gh');
+      expect(gh?.items.find((item) => item.name === 'logged_in')?.status).toBe('skipped');
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
+  });
+
+  it('装上了但没登录时，订阅检查跳过，不再重复登录提示', async () => {
+    const report = await doctor({
+      userHome: tmpdir(),
+      env: { PATH: '', SHELL: 'bash' },
+      which: async (name) => `/usr/local/bin/${name}`,
+      ghAuth: async () => false,
+      probe: {
+        codex: async () => ({ loggedIn: false, subscription: false, source: '未登录' }),
+        claude: async () => ({ loggedIn: false, subscription: false, source: '未登录' }),
+      },
+    });
+    const codex = report.tools.find((tool) => tool.name === 'codex');
+    expect(codex?.items.find((item) => item.name === 'installed')?.status).toBe('ok');
+    expect(codex?.items.find((item) => item.name === 'logged_in')).toMatchObject({
+      status: 'failed',
+      fix: '运行 codex login',
+    });
+    expect(codex?.items.find((item) => item.name === 'subscription')?.status).toBe('skipped');
+    expect(codex?.items.find((item) => item.name === 'subscription')?.fix).toBeNull();
   });
 });

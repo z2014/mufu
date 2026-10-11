@@ -26,6 +26,12 @@ const keySchema = z.object({
 
 type KeyForm = z.infer<typeof keySchema>;
 
+function markFor(status: 'ok' | 'failed' | 'skipped'): string {
+  if (status === 'ok') return '✓';
+  if (status === 'skipped') return '–';
+  return '✗';
+}
+
 const labels: Record<string, string> = {
   installed: '已安装',
   logged_in: '已登录',
@@ -75,8 +81,19 @@ export function Component() {
 
   return (
     <AppShell active="settings" onNewTask={() => setOpen(true)}>
-      <header className="flex h-12 items-center border-b px-4 md:px-7">
+      <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
         <h1 className="font-semibold">连接</h1>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={doctor.isFetching}
+          onClick={() => {
+            void doctor.refetch();
+          }}
+        >
+          重新检测
+        </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-7">
         {doctor.isPending ? <p className="text-muted-foreground text-sm">正在检查本机的 codex、claude 和 gh</p> : null}
@@ -96,10 +113,17 @@ export function Component() {
                   <p className="font-semibold">{tool.name}</p>
                   <ul className="mt-2 flex flex-col gap-1.5">
                     {tool.items.map((item) => (
-                      <li key={item.name} className="flex flex-wrap items-baseline gap-2 text-sm">
-                        <span aria-hidden>{item.ok ? '✓' : '✗'}</span>
+                      <li
+                        key={item.name}
+                        className={
+                          item.status === 'skipped'
+                            ? 'text-muted-foreground flex flex-wrap items-baseline gap-2 text-sm'
+                            : 'flex flex-wrap items-baseline gap-2 text-sm'
+                        }
+                      >
+                        <span aria-hidden>{markFor(item.status)}</span>
                         <span>{labels[item.name] ?? item.name}</span>
-                        <span className="text-muted-foreground">{item.detail}</span>
+                        {item.detail ? <span className="text-muted-foreground">{item.detail}</span> : null}
                         {item.fix ? <span className="text-muted-foreground">修复：{item.fix}</span> : null}
                       </li>
                     ))}
@@ -120,7 +144,7 @@ export function Component() {
         <section className="mt-8 max-w-md">
           <h2 className="font-semibold">OpenRouter</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            留给以后用。现在没有适配器会读它。页面上不显示已保存的值。
+            留给以后用。现在还不会用到。页面上不显示已保存的值。
           </p>
           {secret.isPending ? <p className="text-muted-foreground mt-3 text-sm">正在查看是否已设置</p> : null}
           {secret.isError ? (
