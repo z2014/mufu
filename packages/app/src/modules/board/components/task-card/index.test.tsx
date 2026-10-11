@@ -34,6 +34,8 @@ function task(stageAgent: 'codex' | 'claude'): TaskView {
     attempts: 0,
     runs: 0,
     workspacePath: null,
+    merging: false,
+    diff: null,
     ci: null,
     runStartedAt: null,
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -59,5 +61,19 @@ describe('TaskCard avatar', () => {
     expect(codex).toContain('>Cx<');
     expect(codex).toContain('title="Codex"');
     expect(codex).not.toContain('>Cl<');
+  });
+
+  it('合并中时按钮禁用并写着合并中', () => {
+    const view = task('codex');
+    view.status = 'running';
+    view.merging = true;
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <TaskCard task={view} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('合并中');
+    expect(html).toContain('disabled');
+    expect(html).toContain('aria-busy="true"');
   });
 });

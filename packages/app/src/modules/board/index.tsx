@@ -1,11 +1,14 @@
 import { columnOf, type Column, type TaskView } from '@mufu/core/view';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useOutletContext } from 'react-router';
 
 import { DaemonError, resolveGate, taskKeys } from '@/api/tasks';
+import { DiffDialog } from '@/common/components/diff-dialog';
 import { Button } from '@/common/components/ui/button';
 import type { WorkbenchContext } from '@/common/workbench';
 import { BoardColumn } from '@/modules/board/components/column';
+import { MergeConfirm } from '@/modules/board/components/merge-confirm';
 
 const columns: Column[] = ['needs_you', 'running', 'to_review'];
 
@@ -27,6 +30,8 @@ export function Component() {
       await queryClient.invalidateQueries({ queryKey: taskKeys.list });
     },
   });
+  const [diffTask, setDiffTask] = useState<TaskView | null>(null);
+  const [confirmTask, setConfirmTask] = useState<TaskView | null>(null);
   const grouped = tasks ? group(tasks) : null;
   const waiting = (grouped?.needs_you.length ?? 0) + (grouped?.to_review.length ?? 0);
 
@@ -60,6 +65,8 @@ export function Component() {
               column={column}
               tasks={grouped[column]}
               pendingGateId={gate.isPending ? gate.variables?.gateId : null}
+              onShowDiff={setDiffTask}
+              onAskMerge={setConfirmTask}
               onDecide={(task, decision, comment) => {
                 const gateId = task.pendingGate?.id;
                 if (!gateId) return;
@@ -70,6 +77,27 @@ export function Component() {
         </div>
       ) : null}
       <span className="sr-only">{waiting}</span>
+      <DiffDialog
+        diff={diffTask?.diff ?? null}
+        open={diffTask !== null}
+        onOpenChange={(open) => !open && setDiffTask(null)}
+      />
+      {confirmTask?.diff ? (
+        <MergeConfirm
+          diff={confirmTask.diff}
+          fallbackPr={confirmTask.ci?.pr ?? null}
+          open
+          pending={gate.isPending}
+          onOpenChange={(open) => {
+            if (!open) setConfirmTask(null);
+          }}
+          onConfirm={() => {
+            const gateId = confirmTask.pendingGate?.id;
+            if (!gateId) return;
+            gate.mutate({ gateId, decision: 'approve' }, { onSuccess: () => setConfirmTask(null) });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

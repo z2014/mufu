@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { agentIdentity, type AgentKindName } from '@/common/agent';
+import { Textarea } from '@/common/components/ui/textarea';
 import { cn } from '@/common/utils';
 
 function stageAgent(task: TaskView): AgentKindName | null {
@@ -54,6 +55,7 @@ function elapsedText(startedAt: string, now: number): string {
 }
 
 function statusText(task: TaskView, now: number): string {
+  if (task.merging) return '合并中';
   if (task.attention) return '出问题了';
   if (task.status === 'to_review') return '可以合并';
   if (task.pendingGate) return '等你决定';
@@ -65,10 +67,14 @@ export function TaskCard({
   task,
   pending,
   onDecide,
+  onShowDiff,
+  onAskMerge,
 }: {
   task: TaskView;
   pending?: boolean;
   onDecide?: (decision: 'approve' | 'reject', comment?: string) => void;
+  onShowDiff?: () => void;
+  onAskMerge?: () => void;
 }) {
   const stageIndex = Math.max(
     0,
@@ -135,25 +141,41 @@ export function TaskCard({
             {task.attention.source === 'auth' ? '重新登录' : '去看看'}
           </Link>
         ) : null}
+        {review && task.diff ? (
+          <button type="button" className="text-foreground rounded-md border px-2 py-0.5" onClick={onShowDiff}>
+            看改动
+          </button>
+        ) : null}
         {review ? (
           <>
             <button
               type="button"
               className="text-foreground rounded-md border px-2 py-0.5"
-              disabled={pending}
+              disabled={pending || task.merging}
               onClick={() => setRejecting((value) => !value)}
             >
               打回
             </button>
             <button
               type="button"
-              className="border-primary bg-primary text-primary-foreground rounded-md border px-2 py-0.5"
-              disabled={pending}
-              onClick={() => onDecide?.('approve')}
+              className="border-primary bg-primary text-primary-foreground rounded-md border px-2 py-0.5 disabled:opacity-50"
+              disabled={pending || task.merging}
+              aria-busy={task.merging || undefined}
+              onClick={() => (onAskMerge ? onAskMerge() : onDecide?.('approve'))}
             >
-              验收并合并
+              {task.merging ? '合并中' : '验收并合并'}
             </button>
           </>
+        ) : null}
+        {!review && task.merging ? (
+          <button
+            type="button"
+            className="border-primary bg-primary text-primary-foreground rounded-md border px-2 py-0.5 opacity-50"
+            disabled
+            aria-busy
+          >
+            合并中
+          </button>
         ) : null}
         {!review && task.pendingGate ? (
           <Link to={`/task/${task.id}`} className="text-foreground rounded-md border px-2 py-0.5">
@@ -163,7 +185,7 @@ export function TaskCard({
       </div>
       {rejecting && review ? (
         <form
-          className="mt-2 flex gap-2"
+          className="mt-2 flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             const text = comment.trim();
@@ -178,16 +200,19 @@ export function TaskCard({
           <label className="sr-only" htmlFor={`reject-${task.id}`}>
             打回原因
           </label>
-          <input
+          <Textarea
             id={`reject-${task.id}`}
+            autoFocus
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="写一句原因"
-            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 focus-visible:outline-none focus-visible:ring-1"
+            className="min-h-16 focus:ring-1"
           />
-          <button type="submit" className="text-foreground rounded-md border px-2 py-0.5" disabled={pending}>
-            送出
-          </button>
+          <div className="flex justify-end">
+            <button type="submit" className="text-foreground rounded-md border px-2 py-0.5" disabled={pending}>
+              送出
+            </button>
+          </div>
         </form>
       ) : null}
       {hint ? <p className="text-muted-foreground mt-1 text-xs">{hint}</p> : null}

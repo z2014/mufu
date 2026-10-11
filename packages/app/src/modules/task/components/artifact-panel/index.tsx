@@ -34,14 +34,18 @@ export function ArtifactPanel({
           ⇥
         </button>
       </div>
-      {artifacts.length === 0 ? <p className="text-muted-foreground text-sm">还没有产物</p> : null}
+      {artifacts.filter((artifact) => artifact.kind !== 'diff').length === 0 ? (
+        <p className="text-muted-foreground text-sm">还没有产物</p>
+      ) : null}
       <ul>
-        {artifacts.map((artifact) => (
-          <li key={artifact.id} className="border-border border-b py-2">
-            <p>{artifact.title}</p>
-            <p className="text-muted-foreground text-xs">{artifact.detail}</p>
-          </li>
-        ))}
+        {artifacts
+          .filter((artifact) => artifact.kind !== 'diff')
+          .map((artifact) => (
+            <li key={artifact.id} className="border-border border-b py-2">
+              <p>{artifact.title}</p>
+              <p className="text-muted-foreground text-xs">{artifact.detail}</p>
+            </li>
+          ))}
       </ul>
     </aside>
   );

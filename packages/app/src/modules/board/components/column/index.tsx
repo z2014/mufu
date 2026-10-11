@@ -13,11 +13,15 @@ export function BoardColumn({
   tasks,
   pendingGateId,
   onDecide,
+  onShowDiff,
+  onAskMerge,
 }: {
   column: Column;
   tasks: TaskView[];
   pendingGateId?: string | null;
   onDecide?: (task: TaskView, decision: 'approve' | 'reject', comment?: string) => void;
+  onShowDiff?: (task: TaskView) => void;
+  onAskMerge?: (task: TaskView) => void;
 }) {
   const sorted = sortInColumn(tasks);
   const meta = copy[column];
@@ -35,6 +39,8 @@ export function BoardColumn({
           key={task.id}
           task={task}
           pending={pendingGateId === task.pendingGate?.id}
+          onShowDiff={() => onShowDiff?.(task)}
+          onAskMerge={() => onAskMerge?.(task)}
           onDecide={(decision, comment) => onDecide?.(task, decision, comment)}
         />
       ))}

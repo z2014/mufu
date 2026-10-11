@@ -7,6 +7,7 @@ import { addNote, DaemonError, getTask, readPins, resolveGate, taskKeys } from '
 import { agentIdentity, agentLabel } from '@/common/agent';
 import { shownAuthor } from '@/common/author';
 import { cn } from '@/common/utils';
+import { DiffDialog } from '@/common/components/diff-dialog';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
 import { GateCard } from '@/modules/task/components/gate-card';
 import { MembersButton } from '@/modules/task/components/members';
@@ -24,6 +25,7 @@ export function Component() {
   const [panel, setPanel] = useState(true);
   const [draft, setDraft] = useState('');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: taskKeys.list });
     await queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
@@ -133,9 +135,25 @@ export function Component() {
                 <GateCard
                   gate={current.pendingGate}
                   pending={gate.isPending}
+                  diff={current.diff}
+                  merging={current.merging}
+                  onShowDiff={() => setShowDiff(true)}
                   onDecide={(decision, comment) => gate.mutate({ decision, comment })}
                 />
               ) : null}
+              {!current.pendingGate && current.merging ? (
+                <div className="mx-4 mb-3 flex justify-end md:mx-14">
+                  <button
+                    type="button"
+                    className="bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-sm opacity-50"
+                    disabled
+                    aria-busy
+                  >
+                    合并中
+                  </button>
+                </div>
+              ) : null}
+              <DiffDialog diff={current.diff} open={showDiff} onOpenChange={setShowDiff} />
               {gate.isError ? (
                 <p className="mx-4 mb-2 text-xs md:mx-14">
                   {gate.error instanceof Error ? gate.error.message : '门禁没有送出'}

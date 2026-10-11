@@ -1,15 +1,22 @@
-import type { GateView } from '@mufu/core/view';
+import type { DiffView, GateView } from '@mufu/core/view';
 import { useState } from 'react';
 
 import { Button } from '@/common/components/ui/button';
+import { Textarea } from '@/common/components/ui/textarea';
 
 export function GateCard({
   gate,
   pending,
+  diff,
+  merging,
+  onShowDiff,
   onDecide,
 }: {
   gate: GateView;
   pending: boolean;
+  diff: DiffView | null;
+  merging: boolean;
+  onShowDiff: () => void;
   onDecide: (decision: 'approve' | 'reject', comment?: string) => void;
 }) {
   const approveLabel = gate.kind === 'final' ? '验收并合并' : '通过';
@@ -23,16 +30,31 @@ export function GateCard({
           <p className="font-semibold">{gate.summary}</p>
           <p className="text-muted-foreground mt-0.5 text-xs">{gate.detail || gate.operation}</p>
         </div>
-        <Button type="button" variant="outline" disabled={pending} onClick={() => setRejecting((value) => !value)}>
+        {diff ? (
+          <Button type="button" variant="outline" onClick={onShowDiff}>
+            看改动
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending || merging}
+          onClick={() => setRejecting((value) => !value)}
+        >
           打回
         </Button>
-        <Button type="button" disabled={pending} onClick={() => onDecide('approve')}>
-          {approveLabel}
+        <Button
+          type="button"
+          disabled={pending || merging}
+          aria-busy={merging || undefined}
+          onClick={() => onDecide('approve')}
+        >
+          {merging ? '合并中' : approveLabel}
         </Button>
       </div>
       {rejecting ? (
         <form
-          className="mt-3 flex gap-2"
+          className="mt-3 flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             const text = comment.trim();
@@ -47,16 +69,19 @@ export function GateCard({
           <label className="sr-only" htmlFor="reject-comment">
             打回原因
           </label>
-          <input
+          <Textarea
             id="reject-comment"
+            autoFocus
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="写一句原因"
-            className="border-input focus-visible:ring-ring min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1"
+            className="min-h-16 focus:ring-1"
           />
-          <Button type="submit" size="sm" variant="outline" disabled={pending}>
-            送出打回
-          </Button>
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" variant="outline" disabled={pending}>
+              送出打回
+            </Button>
+          </div>
         </form>
       ) : null}
       {hint ? <p className="text-muted-foreground mt-2 text-xs">{hint}</p> : null}

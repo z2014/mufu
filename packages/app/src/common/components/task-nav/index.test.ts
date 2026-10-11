@@ -28,6 +28,8 @@ function named(title: string, status: TaskView['status']): TaskView {
     attempts: 0,
     runs: 0,
     workspacePath: null,
+    merging: false,
+    diff: null,
     ci: null,
     runStartedAt: null,
     updatedAt: '2026-01-01T00:00:00.000Z',

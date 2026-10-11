@@ -76,6 +76,7 @@ const taskViewSchema = z.object({
       id: z.string(),
       title: z.string(),
       detail: z.string(),
+      kind: z.enum(['diff']).optional(),
     }),
   ),
   messages: z.array(
@@ -89,6 +90,22 @@ const taskViewSchema = z.object({
   attempts: z.number(),
   runs: z.number(),
   workspacePath: z.string().nullable(),
+  merging: z.boolean(),
+  diff: z
+    .object({
+      pr: z.number().nullable(),
+      fileCount: z.number(),
+      additions: z.number(),
+      deletions: z.number(),
+      files: z.array(
+        z.object({
+          path: z.string(),
+          additions: z.number(),
+          deletions: z.number(),
+        }),
+      ),
+    })
+    .nullable(),
   runStartedAt: z.string().nullable(),
   updatedAt: z.string(),
 });
@@ -132,6 +149,10 @@ export async function getTask(taskId: string): Promise<TaskView | null> {
   const result = await rpc('task.get', { taskId });
   if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
+}
+
+export async function checkWorkdir(repoPath: string): Promise<void> {
+  await rpc('workdir.check', { repoPath });
 }
 
 export async function createTask(input: {
