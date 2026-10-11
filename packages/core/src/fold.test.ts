@@ -4,6 +4,7 @@ import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
 import { LEAD_PIN_AUTHOR, STAGE_DONE_PIN } from './agent.ts';
 import { eventSchemaVersion, foldTasks } from './fold.ts';
+import { stageAfterReject } from './model.ts';
 import type { DomainEvent, Workflow } from './model.ts';
 
 const workflow: Workflow = {
@@ -76,7 +77,13 @@ describe('fold', () => {
       ev({ type: 'merge_failed', payload: { pr: 50, reason: 'ci_failed', message: 'CI 没过' } }),
       ev({ type: 'task.status', payload: { status: 'needs_you' } }),
     ]);
-    expect(tasks[0]?.ci).toEqual({ pr: 50, state: 'failed' });
+    expect(tasks[0]?.ci).toEqual({
+      pr: 50,
+      state: 'failed',
+      mergeable: 'unknown',
+      additions: null,
+      deletions: null,
+    });
     expect(tasks[0]?.attention?.message).toBe('CI 没过');
     expect(tasks[0]?.attention?.source).toBe('ci_failed');
     expect(tasks[0]?.attempts).toBe(0);
@@ -107,6 +114,43 @@ describe('fold', () => {
     expect(tasks[0]?.pins.map((pin) => pin.author)).toEqual([LEAD_PIN_AUTHOR]);
     expect(tasks[0]?.pins[0]?.message).toBe(STAGE_DONE_PIN);
     expect(tasks[0]?.pins[0]?.reason).toBe(STAGE_DONE_PIN);
+  });
+
+  it('打回按 reject_to 回到指定阶段，没写时回到门禁前最近的工作阶段', () => {
+    const named: Workflow = {
+      ...workflow,
+      stages: [
+        { id: 'reproduce', title: '复现' },
+        { id: 'fix', title: '修复' },
+        { id: 'pr', title: 'PR 与 CI' },
+        { id: 'accept', title: '验收', gate: 'final', rejectTo: 'fix' },
+      ],
+    };
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow: named } }),
+      ev({ type: 'stage.entered', payload: { stageId: 'accept' } }),
+      ev({ type: 'gate.resolved', payload: { gateId: 'g1', decision: 'reject' } }),
+    ]);
+    expect(tasks[0]?.stageId).toBe('fix');
+    const fallback: Workflow = {
+      ...workflow,
+      stages: [
+        { id: 'implement', title: '实现' },
+        { id: 'accept', title: '验收', gate: 'final' },
+      ],
+    };
+    expect(stageAfterReject(fallback, 'accept')).toBe('implement');
+    expect(stageAfterReject(named, 'accept')).toBe('fix');
+  });
+
+  it('消息作者从事件里的 codex / claude 取名字', () => {
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ev({ type: 'agent.message', payload: { role: 'agent', author: 'claude', text: '已复现' } }),
+      ev({ type: 'agent.message', payload: { role: 'agent', author: 'codex', text: '已修复' } }),
+    ]);
+    expect(tasks[0]?.messages.map((message) => message.author)).toEqual(['你', 'Claude', 'Codex']);
+    expect(tasks[0]?.agentKind).toBe('codex');
   });
 
   it('缺省事件版本是 1，别的版本不折叠', () => {

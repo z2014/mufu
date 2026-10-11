@@ -69,16 +69,16 @@ function openSocket(): Promise<WebSocket> {
       const waiter = pending.get(parsed.id);
       if (!waiter) return;
       pending.delete(parsed.id);
-      if (parsed.error) waiter.reject(new DaemonError(parsed.error.message ?? '守护进程拒绝了请求'));
+      if (parsed.error) waiter.reject(new DaemonError(parsed.error.message ?? '请求被拒绝了'));
       else waiter.resolve(parsed.result);
     });
     ws.addEventListener('error', () => {
-      fail('连不上守护进程。先在另一个终端运行 pnpm daemon');
+      fail('连不上本机服务。先在另一个终端运行 pnpm daemon');
     });
     ws.addEventListener('close', () => {
       socket = null;
-      if (!settled) fail('连不上守护进程。先在另一个终端运行 pnpm daemon');
-      failAll(new DaemonError('守护进程连接断了'));
+      if (!settled) fail('连不上本机服务。先在另一个终端运行 pnpm daemon');
+      failAll(new DaemonError('和本机服务的连接断了'));
     });
   });
 }

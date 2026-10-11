@@ -7,6 +7,7 @@ export {
   columnOf,
   countsAsAttempt,
   sortInColumn,
+  stageAfterReject,
 } from './model.ts';
 export type {
   ArtifactView,
@@ -25,7 +26,15 @@ export type {
   WorkflowStage,
 } from './model.ts';
 export { eventSchemaVersion, foldTask, foldTasks } from './fold.ts';
-export { LEAD_PIN_AUTHOR, STAGE_DONE_PIN, SubscriptionRefused, leadIntro } from './agent.ts';
+export {
+  LEAD_PIN_AUTHOR,
+  STAGE_DONE_PIN,
+  SubscriptionRefused,
+  concreteAuthor,
+  displayAuthor,
+  leadIntro,
+  stageDoneText,
+} from './agent.ts';
 export type {
   AgentAdapter,
   AgentEvent,
@@ -35,7 +44,7 @@ export type {
   OperationKind,
   StartSession,
 } from './agent.ts';
-export { MergeFailure } from './github.ts';
-export type { GitHub, MergeFailureReason } from './github.ts';
+export { MergeFailure, mergeFailureCopy } from './github.ts';
+export type { GitHub, MergeFailureReason, Mergeability, PullInspect } from './github.ts';
 export { OPENROUTER_ACCOUNT } from './secret.ts';
 export type { SecretStore } from './secret.ts';

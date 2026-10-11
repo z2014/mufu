@@ -29,6 +29,7 @@ function task(status: TaskStatus, seq: number, attention: TaskView['attention'])
     runs: 0,
     workspacePath: null,
     ci: null,
+    runStartedAt: null,
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
 }

@@ -13,8 +13,14 @@ import {
 
 const exec = promisify(execFile);
 
+type CheckName = 'installed' | 'logged_in' | 'subscription';
+type CheckStatus = 'ok' | 'failed' | 'skipped';
+
 type CheckItem = {
-  name: 'installed' | 'logged_in' | 'subscription';
+  name: CheckName;
+  /** 前置检查。前置不是 ok 时，这一项变成 skipped。 */
+  dependsOn: CheckName | null;
+  status: CheckStatus;
   ok: boolean;
   detail: string;
   fix: string | null;
@@ -47,6 +53,43 @@ const FIX = {
   claude: '运行 claude，然后输入 /login',
   gh: '运行 gh auth login',
 } as const;
+
+/** 官方安装方式。Claude Code 的 npm 包装已弃用，改用官方安装脚本。 */
+const INSTALL = {
+  codex: 'npm install -g @openai/codex',
+  claude: 'curl -fsSL https://claude.ai/install.sh | bash',
+  gh: 'brew install gh',
+} as const;
+
+function check(
+  name: CheckName,
+  dependsOn: CheckName | null,
+  passed: boolean,
+  detail: string,
+  fix: string,
+): CheckItem {
+  return {
+    name,
+    dependsOn,
+    status: passed ? 'ok' : 'failed',
+    ok: passed,
+    detail,
+    fix: passed ? null : fix,
+  };
+}
+
+/** 前置失败或被跳过时，依赖它的检查不再报 ✗，也不再重复修复提示。 */
+function applyDependencies(items: CheckItem[]): CheckItem[] {
+  const byName = new Map(items.map((item) => [item.name, item]));
+  return items.map((item) => {
+    if (!item.dependsOn) return item;
+    const parent = byName.get(item.dependsOn);
+    if (!parent || parent.status === 'ok') return item;
+    const skipped: CheckItem = { ...item, status: 'skipped', ok: false, detail: '', fix: null };
+    byName.set(item.name, skipped);
+    return skipped;
+  });
+}
 
 async function loginShellPath(name: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   const shell = env.SHELL && env.SHELL.length > 0 ? env.SHELL : 'bash';
@@ -83,68 +126,44 @@ async function probeOrFail(run: () => Promise<LoginVerdict>): Promise<LoginVerdi
 
 function codexItems(path: string | null, verdict: LoginVerdict | null): CheckItem[] {
   const installed = path !== null;
-  return [
-    {
-      name: 'installed',
-      ok: installed,
-      detail: path ?? '未安装',
-      fix: installed ? null : '安装 codex',
-    },
-    {
-      name: 'logged_in',
-      ok: verdict?.loggedIn === true,
-      detail: verdict?.loggedIn ? '已登录' : (verdict?.source ?? '未登录'),
-      fix: verdict?.loggedIn ? null : FIX.codex,
-    },
-    {
-      name: 'subscription',
-      ok: verdict?.subscription === true,
-      detail: verdict?.subscription ? 'account.type=chatgpt' : (verdict?.source ?? '不是订阅'),
-      fix: verdict?.subscription ? null : FIX.codex,
-    },
-  ];
+  const loggedIn = verdict?.loggedIn === true;
+  const subscription = verdict?.subscription === true;
+  return applyDependencies([
+    check('installed', null, installed, path ?? '未安装', INSTALL.codex),
+    check('logged_in', 'installed', loggedIn, loggedIn ? '已登录' : (verdict?.source ?? '未登录'), FIX.codex),
+    check(
+      'subscription',
+      'logged_in',
+      subscription,
+      subscription ? 'account.type=chatgpt' : (verdict?.source ?? '不是订阅'),
+      FIX.codex,
+    ),
+  ]);
 }
 
 function claudeItems(path: string | null, verdict: LoginVerdict | null): CheckItem[] {
   const installed = path !== null;
-  return [
-    {
-      name: 'installed',
-      ok: installed,
-      detail: path ?? '未安装',
-      fix: installed ? null : '安装 claude',
-    },
-    {
-      name: 'logged_in',
-      ok: verdict?.loggedIn === true,
-      detail: verdict?.loggedIn ? '已登录' : (verdict?.source ?? '未登录'),
-      fix: verdict?.loggedIn ? null : FIX.claude,
-    },
-    {
-      name: 'subscription',
-      ok: verdict?.subscription === true,
-      detail: verdict?.subscription ? 'apiKeySource=none' : (verdict?.source ?? '不是订阅'),
-      fix: verdict?.subscription ? null : FIX.claude,
-    },
-  ];
+  const loggedIn = verdict?.loggedIn === true;
+  const subscription = verdict?.subscription === true;
+  return applyDependencies([
+    check('installed', null, installed, path ?? '未安装', INSTALL.claude),
+    check('logged_in', 'installed', loggedIn, loggedIn ? '已登录' : (verdict?.source ?? '未登录'), FIX.claude),
+    check(
+      'subscription',
+      'logged_in',
+      subscription,
+      subscription ? 'apiKeySource=none' : (verdict?.source ?? '不是订阅'),
+      FIX.claude,
+    ),
+  ]);
 }
 
 function ghItems(path: string | null, loggedIn: boolean): CheckItem[] {
   const installed = path !== null;
-  return [
-    {
-      name: 'installed',
-      ok: installed,
-      detail: path ?? '未安装',
-      fix: installed ? null : '安装 gh',
-    },
-    {
-      name: 'logged_in',
-      ok: installed && loggedIn,
-      detail: installed && loggedIn ? '已登录' : '未登录',
-      fix: installed && loggedIn ? null : FIX.gh,
-    },
-  ];
+  return applyDependencies([
+    check('installed', null, installed, path ?? '未安装', INSTALL.gh),
+    check('logged_in', 'installed', installed && loggedIn, installed && loggedIn ? '已登录' : '未登录', FIX.gh),
+  ]);
 }
 
 function ignoredEnvKeyNames(env: NodeJS.ProcessEnv): string[] {
@@ -188,7 +207,7 @@ export async function doctor(input?: {
     tools: [tool('codex', codexPath, codex), tool('claude', claudePath, claude), tool('gh', ghPath, gh)],
     ignoredEnvKeys: ignoredEnvKeyNames(env),
     configKeys: detectConfigKeySources(userHome),
-    note: 'Codex 和 Claude 的 key 不读取、不保存、不显示。环境里如果已经有 key，子进程会丢掉，改走订阅登录。OpenRouter 的钥匙只进钥匙串，适配器还不用。',
+    note: 'Codex 和 Claude 的密钥不会读取、保存或显示。环境里如果已经有密钥，会忽略，改用订阅登录。OpenRouter 的钥匙只保存在钥匙串里，现在还不会用到。',
   };
 }
 

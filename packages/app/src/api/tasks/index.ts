@@ -21,6 +21,7 @@ const taskViewSchema = z.object({
         id: z.string(),
         title: z.string(),
         gate: z.enum(['final', 'stage']).optional(),
+        rejectTo: z.string().optional(),
         agent: z.enum(['codex', 'claude']).optional(),
       }),
     ),
@@ -54,6 +55,9 @@ const taskViewSchema = z.object({
     .object({
       pr: z.number(),
       state: z.enum(['pending', 'passed', 'failed']),
+      mergeable: z.enum(['clean', 'conflict', 'unknown']),
+      additions: z.number().nullable(),
+      deletions: z.number().nullable(),
     })
     .nullable(),
   pins: z.array(
@@ -85,6 +89,7 @@ const taskViewSchema = z.object({
   attempts: z.number(),
   runs: z.number(),
   workspacePath: z.string().nullable(),
+  runStartedAt: z.string().nullable(),
   updatedAt: z.string(),
 });
 
