@@ -10,6 +10,7 @@ import { cn } from '@/common/utils';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
 import { GateCard } from '@/modules/task/components/gate-card';
 import { MembersButton } from '@/modules/task/components/members';
+import { PinTarget, pinAnchor } from '@/modules/task/components/pin-target';
 import { PinStrip } from '@/modules/task/components/pin-strip';
 
 export function Component() {
@@ -22,6 +23,7 @@ export function Component() {
   });
   const [panel, setPanel] = useState(true);
   const [draft, setDraft] = useState('');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: taskKeys.list });
     await queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
@@ -110,13 +112,20 @@ export function Component() {
               pins={current.pins}
               onReadAll={() => pins.mutate()}
               onOpen={(pin) => {
-                const target = pin.messageId ? `msg-${pin.messageId}` : '';
-                document.getElementById(target)?.scrollIntoView({ block: 'center' });
+                if (!pin.messageId) return;
+                setHighlightedId(pin.messageId);
+                document.getElementById(pinAnchor(pin.messageId))?.scrollIntoView({ block: 'center' });
               }}
             />
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-14">
               {current.messages.map((message) => (
-                <Message key={message.id} message={message} pins={current.pins} stages={current.workflow.stages} />
+                <Message
+                  key={message.id}
+                  message={message}
+                  pins={current.pins}
+                  stages={current.workflow.stages}
+                  highlighted={message.id === highlightedId}
+                />
               ))}
             </div>
             <div className="shrink-0">
@@ -200,35 +209,41 @@ function Message({
   message,
   pins,
   stages,
+  highlighted,
 }: {
   message: TaskView['messages'][number];
   pins: TaskView['pins'];
   stages: TaskView['workflow']['stages'];
+  highlighted: boolean;
 }) {
   const pin = pins.find((item) => item.messageId === message.id);
   const caption = pin ? pinCaption(pin, stages) : null;
   if (message.role === 'system') {
     return (
-      <p id={`msg-${message.id}`} className="text-muted-foreground mb-4 text-xs">
+      <PinTarget messageId={message.id} highlighted={highlighted} className="text-muted-foreground mb-4 text-xs">
         {message.text}
         {caption ? <em className="ml-2 font-normal">{caption}</em> : null}
-      </p>
+      </PinTarget>
     );
   }
   if (message.role === 'user') {
     return (
-      <div id={`msg-${message.id}`} className="mb-5 flex justify-end">
+      <PinTarget messageId={message.id} highlighted={highlighted} className="mb-5 flex justify-end">
         <p className="bg-secondary max-w-lg rounded-xl px-3.5 py-2.5">{message.text}</p>
-      </div>
+      </PinTarget>
     );
   }
   return (
-    <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}>
+    <PinTarget
+      messageId={message.id}
+      highlighted={highlighted}
+      className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}
+    >
       <p className="text-muted-foreground mb-1 text-xs">
         {authorLabel(message.author)}
         {caption ? <em className="ml-2 font-normal">{caption}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
-    </div>
+    </PinTarget>
   );
 }
