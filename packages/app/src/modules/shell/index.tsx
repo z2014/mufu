@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Outlet, useMatch, useNavigate } from 'react-router';
 
 import { connectionKeys, fetchDoctor } from '@/api/connections';
-import { createTask, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
+import { checkWorkdir, createTask, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { TaskNav } from '@/common/components/task-nav';
-import { cn } from '@/common/utils';
 import type { WorkbenchContext } from '@/common/workbench';
 import { usePreferences } from '@/store/preferences';
 
@@ -23,6 +22,14 @@ export function Component() {
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
   const [open, setOpen] = useState(false);
+  const validateRepo = useCallback(async (path: string) => {
+    try {
+      await checkWorkdir(path);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : '这个目录不是 git 仓库';
+    }
+  }, []);
   const create = useMutation({
     mutationFn: (input: NewTaskInput) =>
       createTask({
@@ -76,6 +83,7 @@ export function Component() {
         workflows={workflows.data ?? []}
         pending={create.isPending}
         errorMessage={create.error instanceof Error ? create.error.message : null}
+        validateRepo={validateRepo}
         onSubmit={(value) => {
           create.mutate(value);
         }}
@@ -85,5 +93,18 @@ export function Component() {
 }
 
 function Dot({ on }: { on: boolean | undefined }) {
-  return <span className={cn('inline-block size-1.5 rounded-full', on ? 'bg-foreground' : 'bg-border')} aria-hidden />;
+  if (on) {
+    return <span className="bg-foreground inline-block size-2 rounded-full align-middle" aria-label="已连接" />;
+  }
+  if (on === false) {
+    return (
+      <span
+        className="bg-primary text-primary-foreground inline-flex size-4 items-center justify-center rounded-full align-middle text-[10px] font-bold"
+        aria-label="未连接"
+      >
+        !
+      </span>
+    );
+  }
+  return <span className="bg-border inline-block size-2 rounded-full align-middle" aria-hidden />;
 }

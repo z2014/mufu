@@ -38,6 +38,7 @@ type Props = {
   workflows: WorkflowChoice[];
   pending: boolean;
   errorMessage: string | null;
+  validateRepo: (path: string) => Promise<string | null>;
   onSubmit: (value: NewTaskInput) => void;
 };
 
@@ -53,20 +54,42 @@ function defaultsFor(workflow: WorkflowChoice | undefined): Record<string, Stage
   return agents;
 }
 
-export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pending, errorMessage, onSubmit }: Props) {
+export function stageAgentLine(
+  stages: { id: string; title: string }[],
+  agents: Record<string, StageAgentChoice>,
+): string {
+  return stages.map((stage) => `${stage.title} ${agents[stage.id] === 'claude' ? 'Claude' : 'Codex'}`).join(' · ');
+}
+
+export function NewTaskDialog({
+  open,
+  onOpenChange,
+  defaultRepo,
+  workflows,
+  pending,
+  errorMessage,
+  validateRepo,
+  onSubmit,
+}: Props) {
   const defaultId = preferredId(workflows);
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { title: '', prompt: '', workflowId: defaultId, repoPath: defaultRepo },
   });
   const workflowId = form.watch('workflowId');
+  const title = form.watch('title');
+  const repoPath = form.watch('repoPath');
   const selected = workflows.find((item) => item.id === workflowId) ?? workflows.find((item) => item.id === defaultId);
   const stageKey = (selected?.stages ?? []).map((stage) => `${stage.id}:${stage.agent ?? ''}`).join('|');
   const [agents, setAgents] = useState<Record<string, StageAgentChoice>>(() => defaultsFor(selected));
-  const repoInvalid = Boolean(errorMessage) || Boolean(form.formState.errors.repoPath);
+  const [adjusting, setAdjusting] = useState(false);
+  const [repoVerdict, setRepoVerdict] = useState<{ path: string; message: string | null } | null>(null);
+  const [checkingRepo, setCheckingRepo] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setAdjusting(false);
+    setRepoVerdict(null);
     form.reset({ title: '', prompt: '', workflowId: defaultId, repoPath: defaultRepo });
   }, [open, defaultRepo, form, defaultId]);
 
@@ -74,6 +97,41 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
     const workflow = workflows.find((item) => item.id === workflowId) ?? workflows[0];
     setAgents(defaultsFor(workflow));
   }, [stageKey, workflowId, workflows]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const path = repoPath.trim();
+    if (!path) {
+      setCheckingRepo(false);
+      setRepoVerdict(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setCheckingRepo(true);
+    const timer = setTimeout(() => {
+      void validateRepo(path)
+        .then((message) => {
+          if (cancelled) return;
+          setRepoVerdict({ path, message });
+          setCheckingRepo(false);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setRepoVerdict({ path, message: error instanceof Error ? error.message : '这个目录不是 git 仓库' });
+          setCheckingRepo(false);
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, repoPath, validateRepo]);
+
+  const trimmedRepo = repoPath.trim();
+  const repoMessage = repoVerdict?.path === trimmedRepo ? repoVerdict.message : null;
+  const repoOk = trimmedRepo.length > 0 && repoMessage === null && !checkingRepo && repoVerdict?.path === trimmedRepo;
+  const inlineError = repoMessage ?? errorMessage;
+  const line = stageAgentLine(selected?.stages ?? [], agents);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -122,36 +180,45 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
                 )}
               />
             </div>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm">每个阶段用谁</legend>
-              {(selected?.stages ?? []).map((stage) => (
-                <div key={stage.id} className="flex items-center justify-between gap-3 text-sm">
-                  {stage.title}
-                  <Select
-                    value={agents[stage.id] ?? 'codex'}
-                    onValueChange={(value) => {
-                      const kind = value === 'claude' ? 'claude' : 'codex';
-                      setAgents((current) => ({ ...current, [stage.id]: kind }));
-                    }}
-                  >
-                    <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="codex">Codex</SelectItem>
-                      <SelectItem value="claude">Claude</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </fieldset>
+            {adjusting ? (
+              <fieldset className="flex flex-col gap-2">
+                <legend className="text-sm">每个阶段用谁</legend>
+                {(selected?.stages ?? []).map((stage) => (
+                  <div key={stage.id} className="flex items-center justify-between gap-3 text-sm">
+                    {stage.title}
+                    <Select
+                      value={agents[stage.id] ?? 'codex'}
+                      onValueChange={(value) => {
+                        const kind = value === 'claude' ? 'claude' : 'codex';
+                        setAgents((current) => ({ ...current, [stage.id]: kind }));
+                      }}
+                    >
+                      <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="codex">Codex</SelectItem>
+                        <SelectItem value="claude">Claude</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </fieldset>
+            ) : (
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm">{line}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setAdjusting(true)}>
+                  调整
+                </Button>
+              </div>
+            )}
             <label className="flex flex-col gap-1 text-sm">
               工作目录
               <span className="flex gap-2">
                 <Input
                   id="repo-path"
                   placeholder="git 仓库的路径"
-                  aria-invalid={repoInvalid || undefined}
+                  aria-invalid={Boolean(inlineError) || undefined}
                   {...form.register('repoPath')}
                 />
                 <Button
@@ -159,7 +226,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
                   variant="outline"
                   onClick={() => {
                     void window.mufu?.pickDirectory().then((path) => {
-                      if (path) form.setValue('repoPath', path, { shouldValidate: true });
+                      if (path) form.setValue('repoPath', path, { shouldDirty: true });
                     });
                   }}
                 >
@@ -168,7 +235,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
               </span>
               <span className="text-muted-foreground text-xs">{form.formState.errors.repoPath?.message}</span>
             </label>
-            {errorMessage ? (
+            {inlineError ? (
               <p className="text-destructive flex items-center gap-1.5 text-sm font-medium" role="alert">
                 <span
                   className="bg-primary text-primary-foreground inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
@@ -176,7 +243,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
                 >
                   !
                 </span>
-                {errorMessage}
+                {inlineError}
               </p>
             ) : null}
           </div>
@@ -184,7 +251,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button type="submit" disabled={pending || !selected}>
+            <Button type="submit" disabled={pending || !selected || title.trim().length === 0 || !repoOk}>
               {pending ? '正在创建' : '创建任务'}
             </Button>
           </div>
