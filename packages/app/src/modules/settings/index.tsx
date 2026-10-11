@@ -21,7 +21,7 @@ import { Input } from '@/common/components/ui/input';
 import { usePreferences } from '@/store/preferences';
 
 const keySchema = z.object({
-  value: z.string().trim().min(1, '先贴上 key'),
+  value: z.string().trim().min(1, '先贴上钥匙'),
 });
 
 type KeyForm = z.infer<typeof keySchema>;
@@ -133,7 +133,7 @@ export function Component() {
             </ul>
             {doctor.data.configKeys.length > 0 ? (
               <p className="text-muted-foreground mt-4 text-xs">
-                配置文件里有 key 字段，不会读取内容：
+                配置文件里写了钥匙，不会读取内容：
                 {doctor.data.configKeys.map((finding) => `${finding.tool} ${finding.key}`).join('、')}
               </p>
             ) : null}
