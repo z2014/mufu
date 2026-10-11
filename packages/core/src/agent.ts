@@ -84,13 +84,6 @@ export function concreteAuthor(author: string): string {
   return author;
 }
 
-/** 界面上的名字。只从事件里的作者来，不发明「代理」。 */
-export function displayAuthor(author: string): string {
-  if (author === 'codex') return 'Codex';
-  if (author === 'claude') return 'Claude';
-  return author;
-}
-
 /** 桩钉在重点条上的句子：阶段名，加上被钉消息开头大约 30 个字。 */
 export function stageDoneText(stageTitle: string, messageText: string): string {
   const opening = Array.from(messageText).slice(0, 30).join('').trim();

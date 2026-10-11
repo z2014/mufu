@@ -1,6 +1,6 @@
 import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
-import { LEAD_PIN_AUTHOR, displayAuthor } from './agent.ts';
+import { LEAD_PIN_AUTHOR } from './agent.ts';
 import type { Mergeability } from './github.ts';
 import {
   assertTransition,
@@ -119,7 +119,7 @@ function apply(map: Map<string, TaskView>, event: DomainEvent): void {
       task.messages.push({
         id: event.id,
         role: payload.role === 'lead' || payload.role === 'system' || payload.role === 'user' ? payload.role : 'agent',
-        author: displayAuthor(raw),
+        author: raw,
         text: str(payload, 'text'),
       });
       break;

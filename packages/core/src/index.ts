@@ -31,7 +31,6 @@ export {
   STAGE_DONE_PIN,
   SubscriptionRefused,
   concreteAuthor,
-  displayAuthor,
   leadIntro,
   stageDoneText,
 } from './agent.ts';

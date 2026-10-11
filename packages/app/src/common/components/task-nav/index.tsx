@@ -3,12 +3,19 @@ import { Link } from 'react-router';
 
 import { cn } from '@/common/utils';
 
+/** 需要你含待验收。进行中只含正在跑的。空分组由界面写成「无」。 */
+export function sidebarGroups(tasks: TaskView[]): { needsYou: TaskView[]; running: TaskView[] } {
+  return {
+    needsYou: tasks.filter((task) => {
+      const column = columnOf(task);
+      return column === 'needs_you' || column === 'to_review';
+    }),
+    running: tasks.filter((task) => columnOf(task) === 'running'),
+  };
+}
+
 export function TaskNav({ tasks, currentId }: { tasks: TaskView[]; currentId?: string }) {
-  const needsYou = tasks.filter((task) => {
-    const column = columnOf(task);
-    return column === 'needs_you' || column === 'to_review';
-  });
-  const running = tasks.filter((task) => columnOf(task) === 'running');
+  const { needsYou, running } = sidebarGroups(tasks);
   return (
     <>
       <Group title="需要你" tasks={needsYou} currentId={currentId} />

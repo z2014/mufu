@@ -6,7 +6,13 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import { SubscriptionRefused, type AgentAdapter, type AgentSession, type StartSession, type TaskView } from '@mufu/core';
+import {
+  SubscriptionRefused,
+  type AgentAdapter,
+  type AgentSession,
+  type StartSession,
+  type TaskView,
+} from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
 import { socketPath } from './runtime.ts';
@@ -79,17 +85,17 @@ function scripted(
         sessionId: `${kind}-session`,
         events: (async function* events() {
           if (options?.waitNote && input.stageId === 'reproduce') {
-            yield { type: 'message' as const, author: kind === 'claude' ? 'Claude' : 'Codex', text: '等你补充' };
+            yield { type: 'message' as const, author: kind === 'claude' ? 'claude' : 'codex', text: '等你补充' };
             const text = await note;
             yield {
               type: 'message' as const,
-              author: kind === 'claude' ? 'Claude' : 'Codex',
+              author: kind === 'claude' ? 'claude' : 'codex',
               text: `阶段里看到 ${text}`,
             };
           } else {
             yield {
               type: 'message' as const,
-              author: kind === 'claude' ? 'Claude' : 'Codex',
+              author: kind === 'claude' ? 'claude' : 'codex',
               text: `${kind} 做完 ${input.stageId ?? ''}`,
             };
           }

@@ -96,6 +96,7 @@ describe('claude stream', () => {
       }),
     ).toMatchObject({
       type: 'message',
+      author: 'claude',
       text: 'docs say rate limit',
     });
   });

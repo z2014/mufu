@@ -149,7 +149,7 @@ describe('fold', () => {
       ev({ type: 'agent.message', payload: { role: 'agent', author: 'claude', text: '已复现' } }),
       ev({ type: 'agent.message', payload: { role: 'agent', author: 'codex', text: '已修复' } }),
     ]);
-    expect(tasks[0]?.messages.map((message) => message.author)).toEqual(['你', 'Claude', 'Codex']);
+    expect(tasks[0]?.messages.map((message) => message.author)).toEqual(['你', 'claude', 'codex']);
     expect(tasks[0]?.agentKind).toBe('codex');
   });
 

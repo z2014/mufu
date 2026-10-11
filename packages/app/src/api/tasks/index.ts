@@ -112,6 +112,7 @@ const workflowSchema = z.object({
 type WorkflowChoice = z.infer<typeof workflowSchema>;
 
 export const taskKeys = {
+  all: ['tasks'] as const,
   list: ['tasks', 'list'] as const,
   detail: (taskId: string) => ['tasks', taskId] as const,
   workflows: ['workflows'] as const,
@@ -147,11 +148,7 @@ export async function listWorkflows(): Promise<WorkflowChoice[]> {
   return parse(z.array(workflowSchema), await rpc('workflows.list'), '流程');
 }
 
-export async function resolveGate(
-  gateId: string,
-  decision: 'approve' | 'reject',
-  comment?: string,
-): Promise<unknown> {
+export async function resolveGate(gateId: string, decision: 'approve' | 'reject', comment?: string): Promise<unknown> {
   return rpc('gate.resolve', { gateId, decision, comment });
 }
 

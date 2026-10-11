@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
 
 import { onDaemonPush } from '@/api/client';
+import { taskKeys } from '@/api/tasks';
 import { router } from '@/router';
 import './index.css';
 
@@ -13,7 +14,7 @@ function LiveTasks() {
     () =>
       onDaemonPush((method) => {
         if (method !== 'event') return;
-        void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        void queryClient.invalidateQueries({ queryKey: taskKeys.all });
       }),
     [queryClient],
   );

@@ -39,7 +39,7 @@ const secretStatusSchema = z.object({
   openrouter: z.boolean(),
 });
 
-type DoctorReport = z.infer<typeof doctorSchema>;
+export type DoctorReport = z.infer<typeof doctorSchema>;
 type SecretStatus = z.infer<typeof secretStatusSchema>;
 
 export const connectionKeys = {

@@ -74,7 +74,10 @@ describe('codex pitfalls from other apps', () => {
       },
       'thr_1',
     );
-    expect(prose).toMatchObject({ type: 'message', text: 'the docs mention rate limit' });
+    expect(prose).toMatchObject({ type: 'message', author: 'codex', text: 'the docs mention rate limit' });
+    expect(
+      normalizeCodexNotification({ method: 'item/agentMessage/delta', params: { delta: 'hi' } }, null),
+    ).toMatchObject({ type: 'message', author: 'codex', text: 'hi' });
   });
 
   it('手写夹具里审批可以早于 item/started，四种操作都能认出来', () => {

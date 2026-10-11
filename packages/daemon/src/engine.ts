@@ -585,8 +585,7 @@ function kindFor(stageAgent: AgentKind | undefined, fallback: AgentKind | undefi
 }
 
 function eventAuthor(kind: string | null | undefined): 'codex' | 'claude' | null {
-  if (kind === 'claude' || kind === 'Claude') return 'claude';
-  if (kind === 'codex' || kind === 'Codex') return 'codex';
+  if (kind === 'claude' || kind === 'codex') return kind;
   return null;
 }
 

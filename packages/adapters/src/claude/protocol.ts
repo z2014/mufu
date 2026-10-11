@@ -59,7 +59,7 @@ export function normalizeClaudeMessage(message: unknown): AgentEvent | null {
     const content = record(row.message)?.content;
     const text = textFromContent(content);
     if (!text) return null;
-    return { type: 'message', author: 'Claude', text };
+    return { type: 'message', author: 'claude', text };
   }
 
   if (row.type === 'control_request') {

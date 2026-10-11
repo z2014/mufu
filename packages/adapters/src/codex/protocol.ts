@@ -73,10 +73,14 @@ const ENVIRONMENT_CODEX = new Set([
   'ResponseStreamDisconnected',
 ]);
 
-export function classifyCodexError(info: {
-  type?: string;
-  httpStatusCode?: number;
-} | undefined): { kind: 'rate_limit' | 'auth' | 'network' | 'task'; detail: string } {
+export function classifyCodexError(
+  info:
+    | {
+        type?: string;
+        httpStatusCode?: number;
+      }
+    | undefined,
+): { kind: 'rate_limit' | 'auth' | 'network' | 'task'; detail: string } {
   const type = info?.type;
   const status = info?.httpStatusCode;
   if (type === 'UsageLimitExceeded' || status === 429) return { kind: 'rate_limit', detail: type ?? '429' };
@@ -164,7 +168,7 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
   if (method === 'item/agentMessage/delta') {
     const delta = typeof params.delta === 'string' ? params.delta : '';
     if (!delta) return null;
-    return { type: 'message', author: 'Codex', text: delta };
+    return { type: 'message', author: 'codex', text: delta };
   }
   if (method === 'error') {
     const error = asRecord(params.error) ?? params;
@@ -209,7 +213,7 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
   }
   const item = asRecord(params.item);
   if (method === 'item/completed' && item?.type === 'agentMessage' && typeof item.text === 'string') {
-    return { type: 'message', author: 'Codex', text: item.text };
+    return { type: 'message', author: 'codex', text: item.text };
   }
   return null;
 }
