@@ -29,7 +29,13 @@ describe('ciStateFromRollup', () => {
 describe('createGhClient', () => {
   it('does not throw when gh is missing, and classifies merge stderr', async () => {
     const missing = createGhClient({ which: () => Promise.resolve(null) });
-    await expect(missing.inspect('/tmp/repo')).resolves.toEqual({ pr: null, ci: 'pending' });
+    await expect(missing.inspect('/tmp/repo')).resolves.toEqual({
+      pr: null,
+      ci: 'pending',
+      mergeable: 'unknown',
+      additions: null,
+      deletions: null,
+    });
     await expect(missing.merge({ repoPath: '/tmp/repo', pr: 1 })).rejects.toBeInstanceOf(MergeFailure);
 
     const calls: string[][] = [];
@@ -46,8 +52,20 @@ describe('createGhClient', () => {
         return Promise.reject(Object.assign(new Error('merge failed'), { stderr: 'failing checks' }));
       },
     });
-    await expect(client.inspect('/work')).resolves.toEqual({ pr: 12, ci: 'passed' });
+    await expect(client.inspect('/work')).resolves.toEqual({
+      pr: 12,
+      ci: 'passed',
+      mergeable: 'unknown',
+      additions: null,
+      deletions: null,
+    });
     await expect(client.merge({ repoPath: '/work', pr: 12 })).rejects.toMatchObject({ reason: 'ci_failed' });
+    await expect(client.merge({ repoPath: '/work', pr: 12 })).rejects.toThrow(/验收并合并/);
+    await client.merge({ repoPath: '/work', pr: 12 }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : '';
+      expect(message).not.toContain('Command failed');
+      expect(message).not.toContain('/usr/bin/gh');
+    });
     expect(calls[0]?.[0]).toBe('/usr/bin/gh');
     expect(calls[1]).toEqual(['/usr/bin/gh', 'pr', 'merge', '12', '--merge']);
   });

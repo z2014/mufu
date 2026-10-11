@@ -1,7 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { SubscriptionRefused, type AgentAdapter, type AgentSession, type StartSession, type TaskView } from '@mufu/core';
@@ -9,7 +11,23 @@ import { SubscriptionRefused, type AgentAdapter, type AgentSession, type StartSe
 import { startDaemon } from './daemon.ts';
 import { socketPath } from './runtime.ts';
 
+const exec = promisify(execFile);
 const repoRoot = new URL('../../../', import.meta.url).pathname;
+
+async function initRepo(parent: string): Promise<string> {
+  const dir = join(parent, 'repo');
+  mkdirSync(dir);
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: 'mufu',
+    GIT_AUTHOR_EMAIL: 'mufu@localhost',
+    GIT_COMMITTER_NAME: 'mufu',
+    GIT_COMMITTER_EMAIL: 'mufu@localhost',
+  };
+  await exec('git', ['init'], { cwd: dir, env });
+  await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, env });
+  return dir;
+}
 const workflowsDir = join(repoRoot, 'packages/daemon/workflows');
 const fixturePath = join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl');
 
@@ -105,6 +123,7 @@ describe('codex and claude together', () => {
     delete process.env.MUFU_AGENT;
     const calls: string[] = [];
     const home = mkdtempSync(join(tmpdir(), 'mufu-team-'));
+    const repo = await initRepo(home);
     const daemon = await startDaemon({
       home,
       socketPath: socketPath(home),
@@ -125,6 +144,7 @@ describe('codex and claude together', () => {
         title: '空列表',
         prompt: '修一下',
         workflowId: 'fix-bug',
+        repoPath: repo,
       })) as TaskView;
       const waiting = await waitFor(home, created.id, (task) => task.status === 'to_review');
       expect(waiting.pendingGate?.summary).toContain('验收');
@@ -150,6 +170,7 @@ describe('codex and claude together', () => {
     delete process.env.MUFU_AGENT;
     const calls: string[] = [];
     const home = mkdtempSync(join(tmpdir(), 'mufu-team-'));
+    const repo = await initRepo(home);
     const daemon = await startDaemon({
       home,
       socketPath: socketPath(home),
@@ -166,6 +187,7 @@ describe('codex and claude together', () => {
         title: '要 Claude',
         prompt: '先复现',
         workflowId: 'fix-bug',
+        repoPath: repo,
       })) as TaskView;
       const stuck = await waitFor(home, blocked.id, (task) => task.status === 'needs_you' && task.attention !== null);
       expect(stuck.attention?.tool).toBe('claude');
@@ -175,6 +197,7 @@ describe('codex and claude together', () => {
         prompt: '换人',
         workflowId: 'fix-bug',
         agents: codexOnly,
+        repoPath: repo,
       })) as TaskView;
       const review = await waitFor(home, moving.id, (task) => task.status === 'to_review');
       expect(review.agentKind).toBe('codex');
@@ -201,6 +224,7 @@ describe('codex and claude together', () => {
     delete process.env.MUFU_AGENT;
     const calls: string[] = [];
     const home = mkdtempSync(join(tmpdir(), 'mufu-note-'));
+    const repo = await initRepo(home);
     const daemon = await startDaemon({
       home,
       socketPath: socketPath(home),
@@ -217,6 +241,7 @@ describe('codex and claude together', () => {
         title: '补充',
         prompt: '先看一眼',
         workflowId: 'fix-bug',
+        repoPath: repo,
       })) as TaskView;
       await waitFor(home, created.id, (task) => task.messages.some((message) => message.text === '等你补充'));
       await rpc(home, 'task.note', { taskId: created.id, text: '再看边界' });

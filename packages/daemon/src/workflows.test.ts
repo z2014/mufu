@@ -22,6 +22,12 @@ describe('loadWorkflows', () => {
     expect(catalog.list.find((item) => item.id === 'fix-bug')?.stages.find((stage) => stage.id === 'fix')?.agent).toBe(
       'codex',
     );
+    expect(
+      catalog.list.find((item) => item.id === 'fix-bug')?.stages.find((stage) => stage.id === 'accept')?.rejectTo,
+    ).toBe('fix');
+    expect(
+      catalog.list.find((item) => item.id === 'new-feature')?.stages.find((stage) => stage.id === 'accept')?.rejectTo,
+    ).toBe('implement');
   });
 
   it('rejects two defaults and otherwise picks the first file name', () => {

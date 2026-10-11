@@ -1,21 +1,50 @@
+import { execFile } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import {
   LEAD_PIN_AUTHOR,
   MergeFailure,
-  STAGE_DONE_PIN,
+  mergeFailureCopy,
+  stageDoneText,
   type AgentAdapter,
   type AgentSession,
   type GitHub,
+  type PullInspect,
   type TaskView,
 } from '@mufu/core';
 
 import { createTaskEngine, type TaskEngine } from './engine.ts';
 import { SqliteEventLog } from './store.ts';
 import { loadWorkflows } from './workflows.ts';
+
+const exec = promisify(execFile);
+
+async function initRepo(parent: string): Promise<string> {
+  const dir = join(parent, 'repo');
+  mkdirSync(dir);
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: 'mufu',
+    GIT_AUTHOR_EMAIL: 'mufu@localhost',
+    GIT_COMMITTER_NAME: 'mufu',
+    GIT_COMMITTER_EMAIL: 'mufu@localhost',
+  };
+  await exec('git', ['init'], { cwd: dir, env });
+  await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, env });
+  return dir;
+}
+
+const inspected = (pr: number, ci: PullInspect['ci']): PullInspect => ({
+  pr,
+  ci,
+  mergeable: 'clean',
+  additions: 38,
+  deletions: 12,
+});
 
 function adapter(): AgentAdapter {
   return {
@@ -41,8 +70,8 @@ function github(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): GitH
   return {
     merges: 0,
     inspect() {
-      if (behavior === 'ci_failed') return Promise.resolve({ pr: 9, ci: 'failed' as const });
-      return Promise.resolve({ pr: 9, ci: 'passed' as const });
+      if (behavior === 'ci_failed') return Promise.resolve(inspected(9, 'failed'));
+      return Promise.resolve(inspected(9, 'passed'));
     },
     merge() {
       this.merges += 1;
@@ -56,9 +85,12 @@ function github(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): GitH
 async function boot(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): Promise<{
   engine: TaskEngine;
   gh: ReturnType<typeof github>;
+  repo: string;
+  home: string;
   close: () => void;
 }> {
   const home = mkdtempSync(join(tmpdir(), 'mufu-engine-'));
+  const repo = await initRepo(home);
   const dir = join(home, 'workflows');
   mkdirSync(dir);
   const log = new SqliteEventLog(join(home, 'events.sqlite'));
@@ -79,6 +111,8 @@ async function boot(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): 
   return {
     engine,
     gh,
+    repo,
+    home,
     close() {
       engine.shutdown();
       log.close();
@@ -99,9 +133,9 @@ async function until(engine: TaskEngine, taskId: string, ready: (task: TaskView)
 
 describe('merge completes the task', () => {
   it('writes done only after merge succeeds', async () => {
-    const { engine, gh, close } = await boot('ok');
+    const { engine, gh, repo, close } = await boot('ok');
     try {
-      const created = await engine.createTask({ title: '合并', prompt: '过' });
+      const created = await engine.createTask({ title: '合并', prompt: '过', repoPath: repo });
       const waiting = await until(
         engine,
         created.id,
@@ -118,7 +152,14 @@ describe('merge completes the task', () => {
           author: pin.author,
           stageId: pin.stageId,
         })),
-      ).toEqual([{ message: STAGE_DONE_PIN, reason: STAGE_DONE_PIN, author: LEAD_PIN_AUTHOR, stageId: 'accept' }]);
+      ).toEqual([
+        {
+          message: stageDoneText('验收', '用「只验收」流程处理：验收。'),
+          reason: stageDoneText('验收', '用「只验收」流程处理：验收。'),
+          author: LEAD_PIN_AUTHOR,
+          stageId: 'accept',
+        },
+      ]);
       expect(done.attempts).toBe(0);
       expect(gh.merges).toBe(1);
       expect(engine.events(created.id).map((event) => event.type)).toContain('merge_succeeded');
@@ -129,9 +170,9 @@ describe('merge completes the task', () => {
   });
 
   it('counts a conflict and returns the card to 等你', async () => {
-    const { engine, close } = await boot('conflict');
+    const { engine, repo, close } = await boot('conflict');
     try {
-      const created = await engine.createTask({ title: '冲突', prompt: '过' });
+      const created = await engine.createTask({ title: '冲突', prompt: '过', repoPath: repo });
       const waiting = await until(engine, created.id, (task) => task.pendingGate !== null);
       engine.resolveGate(waiting.pendingGate!.id, 'approve');
       const stuck = await until(engine, created.id, (task) => task.status === 'needs_you' && task.attention !== null);
@@ -145,9 +186,9 @@ describe('merge completes the task', () => {
   });
 
   it('does not call merge when CI failed, and still counts the attempt', async () => {
-    const { engine, gh, close } = await boot('ci_failed');
+    const { engine, gh, repo, close } = await boot('ci_failed');
     try {
-      const created = await engine.createTask({ title: 'CI', prompt: '过' });
+      const created = await engine.createTask({ title: 'CI', prompt: '过', repoPath: repo });
       const waiting = await until(engine, created.id, (task) => task.ci?.state === 'failed');
       expect(waiting.status).toBe('to_review');
       engine.resolveGate(waiting.pendingGate!.id, 'approve');
@@ -165,17 +206,81 @@ describe('merge completes the task', () => {
   });
 
   it('does not count an environment failure', async () => {
-    const { engine, close } = await boot('environment');
+    const { engine, repo, close } = await boot('environment');
     try {
-      const created = await engine.createTask({ title: '环境', prompt: '过' });
+      const created = await engine.createTask({ title: '环境', prompt: '过', repoPath: repo });
       const waiting = await until(engine, created.id, (task) => task.pendingGate !== null);
       engine.resolveGate(waiting.pendingGate!.id, 'approve');
       const stuck = await until(engine, created.id, (task) => task.status === 'needs_you' && task.attention !== null);
       expect(stuck.attempts).toBe(0);
-      expect(stuck.attention?.message).toContain('gh auth login');
+      expect(stuck.attention?.message).toBe(mergeFailureCopy('environment'));
+      expect(stuck.attention?.message).not.toContain('Command failed');
       expect(engine.events(created.id).some((event) => event.type === 'attempt.counted')).toBe(false);
     } finally {
       close();
+    }
+  });
+
+  it('refuses a missing directory and a directory that is not a git repo', async () => {
+    const { engine, home, close } = await boot('ok');
+    try {
+      await expect(engine.createTask({ title: '空', prompt: '过', repoPath: '   ' })).rejects.toThrow('先选择工作目录');
+      await expect(engine.createTask({ title: '不是仓库', prompt: '过', repoPath: home })).rejects.toThrow(
+        '这个目录不是 git 仓库',
+      );
+      expect(engine.listTasks()).toEqual([]);
+    } finally {
+      close();
+    }
+  });
+
+  it('打回最终门禁时按 reject_to 回到修复', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'mufu-reject-'));
+    const repo = await initRepo(home);
+    const dir = join(home, 'workflows');
+    mkdirSync(dir);
+    writeFileSync(
+      join(dir, 'bug.yaml'),
+      [
+        'id: bug',
+        'title: 修 bug',
+        'default: true',
+        'done_when: pr_merged',
+        'stages:',
+        '  - id: fix',
+        '    title: 修复',
+        '    agent: codex',
+        '  - id: accept',
+        '    title: 验收',
+        '    gate: final',
+        '    reject_to: fix',
+        '    agent: claude',
+        '',
+      ].join('\n'),
+    );
+    const log = new SqliteEventLog(join(home, 'events.sqlite'));
+    const gh = github('ok');
+    const engine = createTaskEngine({
+      home,
+      log,
+      workflows: loadWorkflows(dir),
+      adapters: { codex: adapter(), claude: adapter() },
+      fixture: null,
+      github: gh,
+      agent: 'codex',
+    });
+    try {
+      const created = await engine.createTask({ title: '打回', prompt: '过', repoPath: repo });
+      const waiting = await until(engine, created.id, (task) => task.stageId === 'accept' && task.pendingGate !== null);
+      expect(waiting.stageId).toBe('accept');
+      engine.resolveGate(waiting.pendingGate!.id, 'reject');
+      const rolled = await until(engine, created.id, (task) => task.pendingGate === null);
+      expect(rolled.stageId).toBe('fix');
+      expect(rolled.workflow.stages.find((stage) => stage.id === 'accept')?.rejectTo).toBe('fix');
+    } finally {
+      engine.shutdown();
+      log.close();
+      rmSync(home, { recursive: true, force: true });
     }
   });
 });
