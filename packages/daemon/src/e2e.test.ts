@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import type { GitHub, TaskView } from '@mufu/core';
+import { stageDoneText, type GitHub, type TaskView } from '@mufu/core';
 
 import { startDaemon } from './daemon.ts';
 import { socketPath } from './runtime.ts';
@@ -17,7 +17,7 @@ const workflowsDir = join(repoRoot, 'packages/daemon/workflows');
 const fixturePath = join(repoRoot, 'fixtures/handwritten/fix-bug.fake.jsonl');
 
 const github: GitHub = {
-  inspect: () => Promise.resolve({ pr: 50, ci: 'passed' }),
+  inspect: () => Promise.resolve({ pr: 50, ci: 'passed', mergeable: 'clean', additions: 38, deletions: 12 }),
   merge: () => Promise.resolve(),
 };
 
@@ -121,9 +121,12 @@ describe('fix bug tracer', () => {
       expect(waiting.status).toBe('to_review');
       expect(waiting.pendingGate?.summary).toContain('验收');
       expect(waiting.pins.map((pin) => pin.stageId)).toEqual(['reproduce', 'fix', 'pr']);
-      expect(
-        waiting.pins.every((pin) => pin.message === '阶段完成' && pin.reason === '阶段完成' && pin.author === 'lead'),
-      ).toBe(true);
+      expect(waiting.pins.map((pin) => pin.message)).toEqual([
+        stageDoneText('复现', '已复现。接口返回空列表时 data 是 undefined，补了一个失败的测试。'),
+        stageDoneText('修复', '已修复，加了空值兜底和 2 个测试，提交了 PR #50。'),
+        stageDoneText('PR 与 CI', 'CI 第一次失败，已修复后通过'),
+      ]);
+      expect(waiting.pins.every((pin) => pin.author === 'lead' && pin.reason === pin.message)).toBe(true);
       const approved = await cliRun(['gate', 'approve', waiting.pendingGate!.id], home);
       expect(approved.code, approved.stderr).toBe(0);
       const done = await waitFor(home, taskId!, (task) => task.status === 'done');
@@ -153,8 +156,12 @@ describe('fix bug tracer', () => {
       useFixture: true,
       github,
     });
+    const repo = await gitRepo();
     try {
-      const created = await cliRun(['task', 'create', '--title', '再看一眼', '--prompt', '先别过'], home);
+      const created = await cliRun(
+        ['task', 'create', '--title', '再看一眼', '--prompt', '先别过', '--repo', repo],
+        home,
+      );
       expect(created.code, created.stderr).toBe(0);
       const taskId = (await listIds(home))[0]!;
       const waiting = await waitFor(home, taskId, (task) => task.pendingGate !== null);
@@ -162,10 +169,12 @@ describe('fix bug tracer', () => {
       expect(rejected.code, rejected.stderr).toBe(0);
       const after = await waitFor(home, taskId, (task) => task.pendingGate === null && task.status === 'needs_you');
       expect(after.status).toBe('needs_you');
+      expect(after.stageId).toBe('fix');
       expect(after.pins.map((pin) => pin.stageId)).toEqual(['reproduce', 'fix', 'pr']);
     } finally {
       await daemon.close();
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 });

@@ -15,7 +15,7 @@ function usage(): void {
   process.stderr.write(`用法：
   mufu daemon
   mufu doctor
-  mufu task create --title 标题 --prompt 描述 [--repo 路径] [--workflow 流程] [--agent 阶段=codex]
+  mufu task create --title 标题 --prompt 描述 --repo 路径 [--workflow 流程] [--agent 阶段=codex]
   mufu task status <taskId>
   mufu task events <taskId>
   mufu task list
@@ -100,13 +100,15 @@ async function main(): Promise<void> {
   if (command === 'task' && sub === 'create') {
     const title = flag('--title');
     const prompt = flag('--prompt');
+    const repoPath = flag('--repo');
     if (!title || !prompt) throw new Error('需要 --title 和 --prompt');
+    if (!repoPath) throw new Error('先选择工作目录');
     const workflowId = flag('--workflow');
     const task = (await callDaemon('task.create', {
       title,
       prompt,
       ...(workflowId ? { workflowId } : {}),
-      repoPath: flag('--repo'),
+      repoPath,
       agents: agentFlags(),
     })) as TaskView;
     printTask(task);

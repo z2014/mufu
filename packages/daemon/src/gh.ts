@@ -1,7 +1,15 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { MergeFailure, type CiState, type GitHub, type MergeFailureReason } from '@mufu/core';
+import {
+  MergeFailure,
+  mergeFailureCopy,
+  type CiState,
+  type GitHub,
+  type Mergeability,
+  type MergeFailureReason,
+  type PullInspect,
+} from '@mufu/core';
 
 const execFileAsync = promisify(execFile);
 
@@ -74,13 +82,22 @@ function textOf(error: unknown): string {
   return String(error);
 }
 
-function firstLine(text: string): string {
-  return (
-    text
-      .split('\n')
-      .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? ''
-  );
+const unknownPull: PullInspect = {
+  pr: null,
+  ci: 'pending',
+  mergeable: 'unknown',
+  additions: null,
+  deletions: null,
+};
+
+function mergeabilityOf(value: unknown): Mergeability {
+  if (value === 'MERGEABLE' || value === 'clean') return 'clean';
+  if (value === 'CONFLICTING' || value === 'DIRTY' || value === 'conflict') return 'conflict';
+  return 'unknown';
+}
+
+function countOf(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 /** 真实 gh。二进制必须是登录 shell 给出的绝对路径。测试注入 which 和 exec。 */
@@ -95,24 +112,40 @@ export function createGhClient(deps?: { which?: () => Promise<string | null>; ex
   return {
     async inspect(repoPath) {
       const bin = await which();
-      if (!bin) return { pr: null, ci: 'pending' };
+      if (!bin) return unknownPull;
       try {
-        const { stdout } = await run(bin, ['pr', 'view', '--json', 'number,statusCheckRollup'], { cwd: repoPath });
-        const parsed = JSON.parse(stdout) as { number?: unknown; statusCheckRollup?: unknown };
+        const { stdout } = await run(
+          bin,
+          ['pr', 'view', '--json', 'number,statusCheckRollup,mergeable,additions,deletions'],
+          { cwd: repoPath },
+        );
+        const parsed = JSON.parse(stdout) as {
+          number?: unknown;
+          statusCheckRollup?: unknown;
+          mergeable?: unknown;
+          additions?: unknown;
+          deletions?: unknown;
+        };
         const pr = typeof parsed.number === 'number' ? parsed.number : null;
-        return { pr, ci: ciStateFromRollup(parsed.statusCheckRollup) };
+        return {
+          pr,
+          ci: ciStateFromRollup(parsed.statusCheckRollup),
+          mergeable: mergeabilityOf(parsed.mergeable),
+          additions: countOf(parsed.additions),
+          deletions: countOf(parsed.deletions),
+        };
       } catch {
-        return { pr: null, ci: 'pending' };
+        return unknownPull;
       }
     },
     async merge({ repoPath, pr }) {
       const bin = await which();
-      if (!bin) throw new MergeFailure('environment', '没有找到 gh');
+      if (!bin) throw new MergeFailure('environment', mergeFailureCopy('environment'));
       try {
         await run(bin, ['pr', 'merge', String(pr), '--merge'], { cwd: repoPath });
       } catch (error) {
-        const text = textOf(error);
-        throw new MergeFailure(classifyMergeFailure(text), firstLine(text) || '合并失败');
+        const reason = classifyMergeFailure(textOf(error));
+        throw new MergeFailure(reason, mergeFailureCopy(reason));
       }
     },
   };
