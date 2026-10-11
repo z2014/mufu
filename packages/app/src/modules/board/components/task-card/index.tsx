@@ -1,35 +1,62 @@
-import type { TaskView } from '@mufu/core/view';
-import { useState } from 'react';
+import { mergeFailureCopy, type MergeFailureReason, type TaskView } from '@mufu/core/view';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { cn } from '@/common/utils';
 
-function agentMark(kind: string | null): string {
+function agentMark(kind: string | null): string | null {
   if (kind === 'claude') return 'C';
   if (kind === 'codex') return 'x';
-  return '代';
+  return null;
 }
 
 function stageTitle(task: TaskView): string {
   return task.workflow.stages.find((stage) => stage.id === task.stageId)?.title ?? task.stageId;
 }
 
+function isMergeReason(source: string | undefined): source is MergeFailureReason {
+  return source === 'conflict' || source === 'ci_failed' || source === 'environment';
+}
+
+function ciWords(state: 'pending' | 'passed' | 'failed'): string {
+  if (state === 'passed') return 'CI 通过';
+  if (state === 'failed') return 'CI 失败';
+  return 'CI 还在跑';
+}
+
+function mergeWords(mergeable: 'clean' | 'conflict' | 'unknown'): string {
+  if (mergeable === 'clean') return '无冲突';
+  if (mergeable === 'conflict') return '有冲突';
+  return '冲突未知';
+}
+
+function reviewLine(task: TaskView): string | null {
+  if (task.status !== 'to_review' || !task.ci) return null;
+  const { ci } = task;
+  const stats = ci.additions === null || ci.deletions === null ? '' : ` · +${ci.additions} −${ci.deletions}`;
+  return `PR #${ci.pr} · ${ciWords(ci.state)} · ${mergeWords(ci.mergeable)}${stats}`;
+}
+
 function summary(task: TaskView): string {
+  if (task.attention && isMergeReason(task.attention.source)) return mergeFailureCopy(task.attention.source);
   if (task.attention) return task.attention.message;
+  const review = reviewLine(task);
+  if (review) return review;
   const last = [...task.messages].reverse().find((message) => message.role !== 'user');
   return last?.text ?? task.prompt;
 }
 
-function ciLabel(state: 'pending' | 'passed' | 'failed'): string {
-  if (state === 'passed') return '通过';
-  if (state === 'failed') return '失败';
-  return '还在跑';
+function elapsedText(startedAt: string, now: number): string {
+  const ms = now - Date.parse(startedAt);
+  if (!Number.isFinite(ms) || ms < 60_000) return '不到 1 分钟';
+  return `${Math.floor(ms / 60_000)} 分钟`;
 }
 
-function statusText(task: TaskView): string {
+function statusText(task: TaskView, now: number): string {
   if (task.attention) return '出问题了';
   if (task.status === 'to_review') return '可以合并';
   if (task.pendingGate) return '等你决定';
+  if (task.status === 'running' && task.runStartedAt) return `正在跑 · ${elapsedText(task.runStartedAt, now)}`;
   return '正在跑';
 }
 
@@ -46,10 +73,17 @@ export function TaskCard({
     0,
     task.workflow.stages.findIndex((stage) => stage.id === task.stageId),
   );
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (task.status !== 'running') return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, [task.status]);
   const [rejecting, setRejecting] = useState(false);
   const [comment, setComment] = useState('');
   const [hint, setHint] = useState('');
   const review = task.status === 'to_review' && task.pendingGate;
+  const mark = agentMark(task.agentKind);
   return (
     <article
       className={cn('bg-card mb-2 rounded-lg border px-3 py-2.5 shadow-sm', task.attention && 'border-foreground')}
@@ -61,7 +95,7 @@ export function TaskCard({
         </span>
         <span className="ml-1 tracking-widest" aria-hidden>
           {task.workflow.stages.map((stage, index) => (
-            <span key={stage.id} className={index <= stageIndex ? 'text-foreground' : 'text-border'}>
+            <span key={stage.id} className={index <= stageIndex ? 'text-foreground' : 'text-[#ddd]'}>
               ●
             </span>
           ))}
@@ -84,21 +118,16 @@ export function TaskCard({
         </Link>
       </h3>
       <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
-      {task.status === 'to_review' && task.ci ? (
-        <p className="text-muted-foreground mt-1 text-[11.5px]">{ciLabel(task.ci.state)}</p>
-      ) : null}
       <div className="text-muted-foreground mt-2.5 flex flex-wrap items-center gap-2 text-[11.5px]">
-        <span
-          className={cn(
-            'bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]',
-          )}
-        >
-          {agentMark(task.agentKind)}
-        </span>
-        <span className="ml-auto">{statusText(task)}</span>
+        {mark ? (
+          <span className="bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]">
+            {mark}
+          </span>
+        ) : null}
+        <span className="ml-auto">{statusText(task, now)}</span>
         {task.attention ? (
           <Link to={`/task/${task.id}`} className="text-foreground rounded-md border px-2 py-0.5">
-            {task.attention.source === 'auth' || task.attention.message.includes('登录') ? '重新登录' : '去看看'}
+            {task.attention.source === 'auth' ? '重新登录' : '去看看'}
           </Link>
         ) : null}
         {review ? (

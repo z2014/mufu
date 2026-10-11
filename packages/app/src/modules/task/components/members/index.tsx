@@ -21,7 +21,7 @@ export function MembersButton({ task }: { task: TaskView }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>成员与能力</DialogTitle>
-            <DialogDescription>每个阶段用流程里选定的代理。这里只看分配，不改模板。</DialogDescription>
+            <DialogDescription>每个阶段用流程里选定的 Codex 或 Claude。这里只看分配，不改模板。</DialogDescription>
           </DialogHeader>
           <ul>
             {task.workflow.stages.map((stage) => (

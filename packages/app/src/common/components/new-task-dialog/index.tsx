@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Button } from '@/common/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/common/components/ui/dialog';
 import { Input } from '@/common/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/common/components/ui/select';
 import { Textarea } from '@/common/components/ui/textarea';
 
 const formSchema = z.object({
@@ -78,7 +79,9 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新任务</DialogTitle>
-          <DialogDescription>选一个流程，也可以改每个阶段用 Codex 还是 Claude。验收通过后会合并对应的 PR。</DialogDescription>
+          <DialogDescription>
+            选一个流程，也可以改每个阶段用 Codex 还是 Claude。验收通过后会合并对应的 PR。
+          </DialogDescription>
         </DialogHeader>
         <form
           className="mt-4 flex max-h-[70vh] flex-col gap-3 overflow-auto"
@@ -96,35 +99,48 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
             <Textarea {...form.register('prompt')} placeholder="描述这个任务" />
             <span className="text-muted-foreground text-xs">{form.formState.errors.prompt?.message}</span>
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-col gap-1 text-sm">
             流程
-            <select className="border-input bg-background h-9 rounded-md border px-3" {...form.register('workflowId')}>
-              {workflows.length === 0 ? <option value="">没有可用的流程</option> : null}
-              {workflows.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
-          </label>
+            <Controller
+              control={form.control}
+              name="workflowId"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange} disabled={workflows.length === 0}>
+                  <SelectTrigger aria-label="流程">
+                    <SelectValue placeholder={workflows.length === 0 ? '没有可用的流程' : '选一个流程'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workflows.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm">每个阶段用谁</legend>
             {(selected?.stages ?? []).map((stage) => (
-              <label key={stage.id} className="flex items-center justify-between gap-3 text-sm">
+              <div key={stage.id} className="flex items-center justify-between gap-3 text-sm">
                 {stage.title}
-                <select
-                  className="border-input bg-background h-9 rounded-md border px-3"
-                  aria-label={`${stage.title}用谁`}
+                <Select
                   value={agents[stage.id] ?? 'codex'}
-                  onChange={(event) => {
-                    const kind = event.target.value === 'claude' ? 'claude' : 'codex';
+                  onValueChange={(value) => {
+                    const kind = value === 'claude' ? 'claude' : 'codex';
                     setAgents((current) => ({ ...current, [stage.id]: kind }));
                   }}
                 >
-                  <option value="codex">Codex</option>
-                  <option value="claude">Claude</option>
-                </select>
-              </label>
+                  <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="codex">Codex</SelectItem>
+                    <SelectItem value="claude">Claude</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             ))}
           </fieldset>
           <label className="flex flex-col gap-1 text-sm">

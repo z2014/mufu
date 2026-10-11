@@ -14,6 +14,7 @@ import {
   resolveGate,
   taskKeys,
 } from '@/api/tasks';
+import { shownAuthor } from '@/common/author';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { TaskNav } from '@/common/components/task-nav';
@@ -95,7 +96,7 @@ export function Component() {
       }
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {task.isPending ? <p className="text-muted-foreground p-8 text-sm">正在读取任务</p> : null}
           {task.isError ? (
             <p className="m-6 flex items-center gap-2 text-sm">
@@ -110,7 +111,7 @@ export function Component() {
           ) : null}
           {current ? (
             <>
-              <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
+              <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4 md:px-7">
                 <h1 className="font-semibold">{current.title}</h1>
                 <span className="text-muted-foreground text-xs">
                   {current.workflow.title}
@@ -160,56 +161,58 @@ export function Component() {
                   document.getElementById(target)?.scrollIntoView({ block: 'center' });
                 }}
               />
-              <div className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-14">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-14">
                 {current.messages.map((message) => (
                   <Message key={message.id} message={message} pins={current.pins} />
                 ))}
               </div>
-              {current.pendingGate ? (
-                <GateCard
-                  gate={current.pendingGate}
-                  pending={gate.isPending}
-                  onDecide={(decision, comment) => gate.mutate({ decision, comment })}
-                />
-              ) : null}
-              {gate.isError ? (
-                <p className="mx-4 mb-2 text-xs md:mx-14">
-                  {gate.error instanceof Error ? gate.error.message : '门禁没有送出'}
-                </p>
-              ) : null}
-              <form
-                className="relative mx-4 mb-5 rounded-2xl border px-4 pb-11 pt-3.5 md:mx-14"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const text = draft.trim();
-                  if (!text) return;
-                  note.mutate(text);
-                }}
-              >
-                <label className="sr-only" htmlFor="note">
-                  补充说明
-                </label>
-                <input
-                  id="note"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="描述任务，输入 / 调用技能"
-                  className="w-full bg-transparent text-sm focus-visible:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="bg-accent text-muted-foreground focus-visible:ring-ring absolute bottom-2.5 right-3 inline-flex size-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2"
-                  aria-label="发送"
-                  disabled={note.isPending || current.status === 'done'}
-                >
-                  ↑
-                </button>
-                {note.isError ? (
-                  <p className="text-muted-foreground absolute bottom-3 left-4 text-xs">
-                    {note.error instanceof Error ? note.error.message : '没送出去'}
+              <div className="shrink-0">
+                {current.pendingGate ? (
+                  <GateCard
+                    gate={current.pendingGate}
+                    pending={gate.isPending}
+                    onDecide={(decision, comment) => gate.mutate({ decision, comment })}
+                  />
+                ) : null}
+                {gate.isError ? (
+                  <p className="mx-4 mb-2 text-xs md:mx-14">
+                    {gate.error instanceof Error ? gate.error.message : '门禁没有送出'}
                   </p>
                 ) : null}
-              </form>
+                <form
+                  className="relative mx-4 mb-5 rounded-2xl border px-4 pb-11 pt-3.5 md:mx-14"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const text = draft.trim();
+                    if (!text) return;
+                    note.mutate(text);
+                  }}
+                >
+                  <label className="sr-only" htmlFor="note">
+                    补充说明
+                  </label>
+                  <input
+                    id="note"
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder="补充一句"
+                    className="w-full bg-transparent text-sm focus-visible:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-accent text-muted-foreground focus-visible:ring-ring absolute bottom-2.5 right-3 inline-flex size-7 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2"
+                    aria-label="发送"
+                    disabled={note.isPending || current.status === 'done'}
+                  >
+                    ↑
+                  </button>
+                  {note.isError ? (
+                    <p className="text-muted-foreground absolute bottom-3 left-4 text-xs">
+                      {note.error instanceof Error ? note.error.message : '没送出去'}
+                    </p>
+                  ) : null}
+                </form>
+              </div>
             </>
           ) : null}
         </section>
@@ -262,7 +265,7 @@ function Message({ message, pins }: { message: TaskView['messages'][number]; pin
   return (
     <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}>
       <p className="text-muted-foreground mb-1 text-xs">
-        {message.author}
+        {shownAuthor(message.author)}
         {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
