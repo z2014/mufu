@@ -1,4 +1,4 @@
-import type { TaskView } from '@mufu/core/view';
+import { STAGE_DONE_PIN, type TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -14,6 +14,7 @@ import {
   resolveGate,
   taskKeys,
 } from '@/api/tasks';
+import { agentIdentity } from '@/common/agent';
 import { shownAuthor } from '@/common/author';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
@@ -163,7 +164,7 @@ export function Component() {
               />
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-14">
                 {current.messages.map((message) => (
-                  <Message key={message.id} message={message} pins={current.pins} />
+                  <Message key={message.id} message={message} pins={current.pins} stages={current.workflow.stages} />
                 ))}
               </div>
               <div className="shrink-0">
@@ -234,9 +235,19 @@ export function Component() {
 }
 
 function agentTitle(kind: string | null): string {
-  if (kind === 'claude') return ' · Claude';
-  if (kind === 'codex') return ' · Codex';
+  if (kind === 'codex' || kind === 'claude') return ` · ${agentIdentity(kind).displayName}`;
   return '';
+}
+
+function authorLabel(author: string): string {
+  if (author === 'codex' || author === 'Codex') return agentIdentity('codex').displayName;
+  if (author === 'claude' || author === 'Claude') return agentIdentity('claude').displayName;
+  return shownAuthor(author);
+}
+
+function pinCaption(pin: TaskView['pins'][number], stages: TaskView['workflow']['stages']): string {
+  const title = stages.find((stage) => stage.id === pin.stageId)?.title ?? pin.stageId;
+  return `📌 ${STAGE_DONE_PIN}：${title}`;
 }
 
 function ciText(state: 'pending' | 'passed' | 'failed'): string {
@@ -245,13 +256,22 @@ function ciText(state: 'pending' | 'passed' | 'failed'): string {
   return 'CI 还在跑';
 }
 
-function Message({ message, pins }: { message: TaskView['messages'][number]; pins: TaskView['pins'] }) {
+function Message({
+  message,
+  pins,
+  stages,
+}: {
+  message: TaskView['messages'][number];
+  pins: TaskView['pins'];
+  stages: TaskView['workflow']['stages'];
+}) {
   const pin = pins.find((item) => item.messageId === message.id);
+  const caption = pin ? pinCaption(pin, stages) : null;
   if (message.role === 'system') {
     return (
       <p id={`msg-${message.id}`} className="text-muted-foreground mb-4 text-xs">
         {message.text}
-        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
+        {caption ? <em className="ml-2 font-normal">{caption}</em> : null}
       </p>
     );
   }
@@ -265,8 +285,8 @@ function Message({ message, pins }: { message: TaskView['messages'][number]; pin
   return (
     <div id={`msg-${message.id}`} className={cn('mb-5 max-w-xl', pin && 'border-border border-l-2 pl-3')}>
       <p className="text-muted-foreground mb-1 text-xs">
-        {shownAuthor(message.author)}
-        {pin ? <em className="ml-2 font-normal">📌 {pin.reason}</em> : null}
+        {authorLabel(message.author)}
+        {caption ? <em className="ml-2 font-normal">{caption}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
     </div>

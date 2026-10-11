@@ -1,12 +1,12 @@
 import type { TaskView } from '@mufu/core/view';
 import { useState } from 'react';
 
+import { agentIdentity } from '@/common/agent';
 import { Button } from '@/common/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/common/components/ui/dialog';
 
 function agentName(agent: string | undefined): string {
-  if (agent === 'claude') return 'Claude';
-  if (agent === 'codex') return 'Codex';
+  if (agent === 'codex' || agent === 'claude') return agentIdentity(agent).displayName;
   return '未定';
 }
 

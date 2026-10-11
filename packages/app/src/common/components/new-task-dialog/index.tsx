@@ -63,6 +63,7 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
   const selected = workflows.find((item) => item.id === workflowId) ?? workflows.find((item) => item.id === defaultId);
   const stageKey = (selected?.stages ?? []).map((stage) => `${stage.id}:${stage.agent ?? ''}`).join('|');
   const [agents, setAgents] = useState<Record<string, StageAgentChoice>>(() => defaultsFor(selected));
+  const repoInvalid = Boolean(errorMessage) || Boolean(form.formState.errors.repoPath);
 
   useEffect(() => {
     if (!open) return;
@@ -76,93 +77,110 @@ export function NewTaskDialog({ open, onOpenChange, defaultRepo, workflows, pend
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>新任务</DialogTitle>
           <DialogDescription>
             选一个流程，也可以改每个阶段用 Codex 还是 Claude。验收通过后会合并对应的 PR。
           </DialogDescription>
         </DialogHeader>
         <form
-          className="mt-4 flex max-h-[70vh] flex-col gap-3 overflow-auto"
+          className="mt-4 flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => {
             void form.handleSubmit((value) => onSubmit({ ...value, agents }))(event);
           }}
         >
-          <label className="flex flex-col gap-1 text-sm">
-            标题
-            <Input {...form.register('title')} />
-            <span className="text-muted-foreground text-xs">{form.formState.errors.title?.message}</span>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            要做的事
-            <Textarea {...form.register('prompt')} placeholder="描述这个任务" />
-            <span className="text-muted-foreground text-xs">{form.formState.errors.prompt?.message}</span>
-          </label>
-          <div className="flex flex-col gap-1 text-sm">
-            流程
-            <Controller
-              control={form.control}
-              name="workflowId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={workflows.length === 0}>
-                  <SelectTrigger aria-label="流程">
-                    <SelectValue placeholder={workflows.length === 0 ? '没有可用的流程' : '选一个流程'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workflows.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm">每个阶段用谁</legend>
-            {(selected?.stages ?? []).map((stage) => (
-              <div key={stage.id} className="flex items-center justify-between gap-3 text-sm">
-                {stage.title}
-                <Select
-                  value={agents[stage.id] ?? 'codex'}
-                  onValueChange={(value) => {
-                    const kind = value === 'claude' ? 'claude' : 'codex';
-                    setAgents((current) => ({ ...current, [stage.id]: kind }));
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            <label className="flex flex-col gap-1 text-sm">
+              标题
+              <Input {...form.register('title')} />
+              <span className="text-muted-foreground text-xs">{form.formState.errors.title?.message}</span>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              要做的事
+              <Textarea {...form.register('prompt')} placeholder="描述这个任务" />
+              <span className="text-muted-foreground text-xs">{form.formState.errors.prompt?.message}</span>
+            </label>
+            <div className="flex flex-col gap-1 text-sm">
+              流程
+              <Controller
+                control={form.control}
+                name="workflowId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={workflows.length === 0}>
+                    <SelectTrigger aria-label="流程">
+                      <SelectValue placeholder={workflows.length === 0 ? '没有可用的流程' : '选一个流程'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workflows.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm">每个阶段用谁</legend>
+              {(selected?.stages ?? []).map((stage) => (
+                <div key={stage.id} className="flex items-center justify-between gap-3 text-sm">
+                  {stage.title}
+                  <Select
+                    value={agents[stage.id] ?? 'codex'}
+                    onValueChange={(value) => {
+                      const kind = value === 'claude' ? 'claude' : 'codex';
+                      setAgents((current) => ({ ...current, [stage.id]: kind }));
+                    }}
+                  >
+                    <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="codex">Codex</SelectItem>
+                      <SelectItem value="claude">Claude</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </fieldset>
+            <label className="flex flex-col gap-1 text-sm">
+              工作目录
+              <span className="flex gap-2">
+                <Input
+                  id="repo-path"
+                  placeholder="git 仓库的路径"
+                  aria-invalid={repoInvalid || undefined}
+                  {...form.register('repoPath')}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void window.mufu?.pickDirectory().then((path) => {
+                      if (path) form.setValue('repoPath', path, { shouldValidate: true });
+                    });
                   }}
                 >
-                  <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="codex">Codex</SelectItem>
-                    <SelectItem value="claude">Claude</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </fieldset>
-          <label className="flex flex-col gap-1 text-sm">
-            工作目录
-            <span className="flex gap-2">
-              <Input id="repo-path" placeholder="git 仓库的路径" {...form.register('repoPath')} />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  void window.mufu?.pickDirectory().then((path) => {
-                    if (path) form.setValue('repoPath', path, { shouldValidate: true });
-                  });
-                }}
-              >
-                选择…
-              </Button>
-            </span>
-            <span className="text-muted-foreground text-xs">{form.formState.errors.repoPath?.message}</span>
-          </label>
-          {errorMessage ? <p className="text-sm">{errorMessage}</p> : null}
-          <div className="mt-2 flex justify-end gap-2">
+                  选择…
+                </Button>
+              </span>
+              <span className="text-muted-foreground text-xs">{form.formState.errors.repoPath?.message}</span>
+            </label>
+            {errorMessage ? (
+              <p className="text-destructive flex items-center gap-1.5 text-sm font-medium" role="alert">
+                <span
+                  className="bg-primary text-primary-foreground inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                  aria-hidden
+                >
+                  !
+                </span>
+                {errorMessage}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-4 flex shrink-0 justify-end gap-2 pb-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>

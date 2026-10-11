@@ -2,11 +2,12 @@ import { mergeFailureCopy, type MergeFailureReason, type TaskView } from '@mufu/
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
+import { agentIdentity, type AgentKindName } from '@/common/agent';
 import { cn } from '@/common/utils';
 
-function agentMark(kind: string | null): string | null {
-  if (kind === 'claude') return 'C';
-  if (kind === 'codex') return 'x';
+function stageAgent(task: TaskView): AgentKindName | null {
+  const stage = task.workflow.stages.find((item) => item.id === task.stageId);
+  if (stage?.agent === 'codex' || stage?.agent === 'claude') return stage.agent;
   return null;
 }
 
@@ -83,7 +84,8 @@ export function TaskCard({
   const [comment, setComment] = useState('');
   const [hint, setHint] = useState('');
   const review = task.status === 'to_review' && task.pendingGate;
-  const mark = agentMark(task.agentKind);
+  const kind = stageAgent(task);
+  const identity = kind ? agentIdentity(kind) : null;
   return (
     <article
       className={cn('bg-card mb-2 rounded-lg border px-3 py-2.5 shadow-sm', task.attention && 'border-foreground')}
@@ -119,9 +121,12 @@ export function TaskCard({
       </h3>
       <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
       <div className="text-muted-foreground mt-2.5 flex flex-wrap items-center gap-2 text-[11.5px]">
-        {mark ? (
-          <span className="bg-primary text-primary-foreground inline-flex size-5 items-center justify-center rounded-full text-[9px]">
-            {mark}
+        {identity ? (
+          <span
+            title={identity.displayName}
+            className="bg-primary text-primary-foreground inline-flex h-5 items-center justify-center rounded-full px-1 text-[9px]"
+          >
+            {identity.initials}
           </span>
         ) : null}
         <span className="ml-auto">{statusText(task, now)}</span>
