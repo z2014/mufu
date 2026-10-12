@@ -38,7 +38,10 @@ pnpm install
 pnpm typecheck
 pnpm lint
 pnpm test
+pnpm build:check
 ```
+
+`pnpm build:check` 在 Linux 上编译看板和 Electron 主进程，并用 esbuild 把守护进程打成 CommonJS（和 `pnpm build:mac` 里那一步相同）。它不跑 electron-builder，也打不出 `mufu.app`。顶层 `await` 写进这个 CommonJS 包会在这里失败。
 
 `pnpm install` 会编译 electron 和 esbuild。桌面壳若提示找不到 electron，再执行 `pnpm rebuild electron esbuild`。
 
@@ -110,7 +113,7 @@ pnpm install
 pnpm build:mac
 ```
 
-产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。
+产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。要在 Linux 上确认能打成包的那几步（看板、Electron 主进程、守护进程 CommonJS），用 `pnpm build:check`。
 
 在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性，第一次要在访达里右键 `mufu.app`，选「打开」，或者在包所在目录执行：
 

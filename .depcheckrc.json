@@ -1,5 +1,5 @@
 {
-  "ignore-patterns": ["dist", "dist-electron", "dist-types", "fixtures", "docs", "uploads"],
+  "ignore-patterns": ["dist", "dist-electron", "dist-types", "fixtures", "docs", "uploads", "resources/**", "release/**"],
   "ignores": [
     "@babel/core",
     "eslint-plugin-react-hooks",

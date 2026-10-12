@@ -16,6 +16,7 @@
     "deps": "depcruise packages scripts --config .dependency-cruiser.cjs",
     "check": "pnpm lint",
     "build": "pnpm -r --if-present build",
+    "build:check": "tsx scripts/build-check.ts",
     "start": "tsx scripts/start.ts",
     "mufu": "tsx packages/cli/src/main.ts",
     "daemon": "tsx packages/daemon/src/bin.ts",

@@ -81,7 +81,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: '(^|/)(dist|dist-electron|dist-types)/' },
+    exclude: { path: '(^|/)(dist|dist-electron|dist-types)/|^release/|^packages/app/resources/' },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
       exportsFields: ['exports'],

@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { bundleDaemon } from './bundle-daemon.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -30,29 +30,6 @@ function run(command: string, args: string[]): Promise<void> {
   });
 }
 
-async function bundleDaemon(): Promise<void> {
-  const resources = join(repoRoot, 'packages/app/resources');
-  mkdirSync(resources, { recursive: true });
-  const esbuild = await import('esbuild');
-  await esbuild.build({
-    entryPoints: [join(repoRoot, 'packages/daemon/src/bin.ts')],
-    bundle: true,
-    platform: 'node',
-    format: 'cjs',
-    outfile: join(resources, 'daemon.cjs'),
-    external: ['@anthropic-ai/claude-agent-sdk'],
-  });
-  const workflows = join(resources, 'workflows');
-  rmSync(workflows, { recursive: true, force: true });
-  cpSync(join(repoRoot, 'packages/daemon/workflows'), workflows, { recursive: true });
-  const require = createRequire(join(repoRoot, 'packages/adapters/package.json'));
-  const sdkJson = require.resolve('@anthropic-ai/claude-agent-sdk/package.json');
-  const sdkDest = join(resources, 'node_modules/@anthropic-ai/claude-agent-sdk');
-  rmSync(join(resources, 'node_modules'), { recursive: true, force: true });
-  mkdirSync(dirname(sdkDest), { recursive: true });
-  cpSync(dirname(sdkJson), sdkDest, { recursive: true });
-}
-
 async function main(): Promise<void> {
   const blocked = macBuildUnavailableMessage(process.platform);
   if (blocked) {
@@ -60,7 +37,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   await run('pnpm', ['--filter', '@mufu/app', 'build']);
-  await bundleDaemon();
+  await bundleDaemon(repoRoot);
   await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--mac', '--config', 'electron-builder.yml']);
   process.stdout.write('打好了：release/mac-universal/mufu.app（未签名）。\n');
 }

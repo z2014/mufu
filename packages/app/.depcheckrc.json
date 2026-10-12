@@ -1,3 +1,4 @@
 {
-  "ignores": ["@types/node", "tailwindcss", "electron-builder", "vitest"]
+  "ignores": ["@types/node", "tailwindcss", "electron-builder", "vitest"],
+  "ignore-patterns": ["dist", "dist-electron", "resources/**"]
 }

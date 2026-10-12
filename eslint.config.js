@@ -9,6 +9,8 @@ export default [
       '**/dist/**',
       '**/dist-electron/**',
       '**/dist-types/**',
+      'packages/app/resources/**',
+      'release/**',
       '**/node_modules/**',
       'uploads/**',
       'fixtures/**',
