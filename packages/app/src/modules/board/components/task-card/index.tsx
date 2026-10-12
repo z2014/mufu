@@ -1,4 +1,4 @@
-import { mergeFailureCopy, type MergeFailureReason, type TaskView } from '@mufu/core/view';
+import { mergeFailureCopy, mergingCopy, type MergeFailureReason, type TaskView } from '@mufu/core/view';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
@@ -40,6 +40,7 @@ function reviewLine(task: TaskView): string | null {
 }
 
 function summary(task: TaskView): string {
+  if (task.merging && task.mergePr !== null) return mergingCopy(task.mergePr);
   if (task.attention && isMergeReason(task.attention.source)) return mergeFailureCopy(task.attention.source);
   if (task.attention) return task.attention.message;
   const review = reviewLine(task);
@@ -160,22 +161,11 @@ export function TaskCard({
               type="button"
               className="border-primary bg-primary text-primary-foreground rounded-md border px-2 py-0.5 disabled:opacity-50"
               disabled={pending || task.merging}
-              aria-busy={task.merging || undefined}
               onClick={() => (onAskMerge ? onAskMerge() : onDecide?.('approve'))}
             >
-              {task.merging ? '合并中' : '验收并合并'}
+              验收并合并
             </button>
           </>
-        ) : null}
-        {!review && task.merging ? (
-          <button
-            type="button"
-            className="border-primary bg-primary text-primary-foreground rounded-md border px-2 py-0.5 opacity-50"
-            disabled
-            aria-busy
-          >
-            合并中
-          </button>
         ) : null}
         {!review && task.pendingGate ? (
           <Link to={`/task/${task.id}`} className="text-foreground rounded-md border px-2 py-0.5">

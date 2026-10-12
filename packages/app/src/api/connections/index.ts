@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { DaemonError, rpc } from '@/api/client';
@@ -39,7 +40,7 @@ const secretStatusSchema = z.object({
   openrouter: z.boolean(),
 });
 
-export type DoctorReport = z.infer<typeof doctorSchema>;
+type DoctorReport = z.infer<typeof doctorSchema>;
 type SecretStatus = z.infer<typeof secretStatusSchema>;
 
 export const connectionKeys = {
@@ -53,8 +54,12 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
   return parsed.data;
 }
 
-export async function fetchDoctor(): Promise<DoctorReport> {
+async function fetchDoctor(): Promise<DoctorReport> {
   return parse(doctorSchema, await rpc('doctor'), '检查');
+}
+
+export function useDoctor() {
+  return useQuery({ queryKey: connectionKeys.doctor, queryFn: fetchDoctor, retry: false });
 }
 
 export async function fetchSecretStatus(): Promise<SecretStatus> {

@@ -1,23 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import { Outlet, useMatch, useNavigate } from 'react-router';
+import { Link, Outlet, useMatch, useNavigate } from 'react-router';
 
-import { connectionKeys, fetchDoctor } from '@/api/connections';
-import { checkWorkdir, createTask, listTasks, listWorkflows, taskKeys } from '@/api/tasks';
+import { useDoctor } from '@/api/connections';
+import { checkWorkdir, createTask, listWorkflows, taskKeys, useTasks } from '@/api/tasks';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { TaskNav } from '@/common/components/task-nav';
 import type { WorkbenchContext } from '@/common/workbench';
 import { usePreferences } from '@/store/preferences';
 
-/** 侧栏的任务列表和连接状态只在这里订阅。换页不卸载这个布局，所以不会重取。 */
+/** 侧栏自己读任务和连接。页面用同一套 query key，React Query 会合并进行中的请求。 */
 export function Component() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const taskMatch = useMatch('/task/:taskId');
   const settingsMatch = useMatch('/settings');
-  const tasks = useQuery({ queryKey: taskKeys.list, queryFn: listTasks });
-  const doctor = useQuery({ queryKey: connectionKeys.doctor, queryFn: fetchDoctor, retry: false });
+  const tasks = useTasks();
+  const doctor = useDoctor();
   const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
@@ -50,17 +50,7 @@ export function Component() {
   if (taskMatch) active = 'task';
   if (settingsMatch) active = 'settings';
   const context: WorkbenchContext = {
-    tasks: tasks.data,
-    tasksPending: tasks.isPending,
-    tasksError: tasks.error,
     openNewTask: () => setOpen(true),
-    doctor: doctor.data,
-    doctorPending: doctor.isPending,
-    doctorFetching: doctor.isFetching,
-    doctorError: doctor.error,
-    recheckDoctor: () => {
-      void doctor.refetch();
-    },
   };
 
   return (
@@ -98,12 +88,13 @@ function Dot({ on }: { on: boolean | undefined }) {
   }
   if (on === false) {
     return (
-      <span
-        className="bg-primary text-primary-foreground inline-flex size-4 items-center justify-center rounded-full align-middle text-[10px] font-bold"
+      <Link
+        to="/settings"
+        className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex size-4 items-center justify-center rounded-full align-middle text-[10px] font-bold focus-visible:outline-none focus-visible:ring-1"
         aria-label="未连接"
       >
         !
-      </span>
+      </Link>
     );
   }
   return <span className="bg-border inline-block size-2 rounded-full align-middle" aria-hidden />;

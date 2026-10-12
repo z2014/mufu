@@ -62,7 +62,7 @@ export type TaskEngine = {
   note(taskId: string, text: string): TaskView;
   resolveGate(gateId: string, decision: Decision, comment?: string): TaskView;
   requestMerge(taskId: string): Promise<void>;
-  readPins(taskId: string): TaskView;
+  readPins(taskId: string, pinIds: string[]): TaskView;
   workflows(): ListedWorkflow[];
   shutdown(): void;
 };
@@ -606,11 +606,16 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     note,
     resolveGate,
     requestMerge: completeByMerge,
-    readPins(taskId) {
-      log.append({ taskId, type: 'pin.read', payload: {} });
+    readPins(taskId, pinIds) {
       const task = one(taskId);
       if (!task) throw new Error('没有这个任务');
-      return task;
+      const known = new Set(task.pins.map((pin) => pin.id));
+      const ids = [...new Set(pinIds.filter((id) => known.has(id)))];
+      if (ids.length === 0) return task;
+      log.append({ taskId, type: 'pin.read', payload: { pinIds: ids } });
+      const updated = one(taskId);
+      if (!updated) throw new Error('没有这个任务');
+      return updated;
     },
     workflows: () => options.workflows.list,
     shutdown() {

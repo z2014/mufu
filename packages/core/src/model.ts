@@ -103,6 +103,8 @@ export type TaskView = {
   workspacePath: string | null;
   /** `merge_requested` 已写下，还没有成功或失败。重启后仍然成立。 */
   merging: boolean;
+  /** 正在合并的 PR 编号，来自 `merge_requested`。没在合并时是 null。 */
+  mergePr: number | null;
   /** PR 阶段结束时的文件列表。没有这条事件就是 null。 */
   diff: DiffView | null;
   /** 待验收卡片上的 PR。只来自守护进程写下的事件。 */
@@ -130,6 +132,11 @@ export type DomainEvent = {
 
 export const MAX_ATTEMPTS = 3;
 export const MAX_PINS_PER_STAGE = 5;
+
+/** 未读条数只从折好的重点来，界面不另记一份。 */
+export function unreadPinCount(pins: { read: boolean }[]): number {
+  return pins.filter((pin) => !pin.read).length;
+}
 
 export type FailureKind = 'rate_limit' | 'auth' | 'network' | 'task' | 'conflict' | 'ci_failed' | 'environment';
 

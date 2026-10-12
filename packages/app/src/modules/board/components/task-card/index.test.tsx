@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import type { TaskView } from '@mufu/core/view';
+import { mergingCopy, type TaskView } from '@mufu/core/view';
 
 import { TaskCard } from './index.tsx';
 
@@ -35,6 +35,7 @@ function task(stageAgent: 'codex' | 'claude'): TaskView {
     runs: 0,
     workspacePath: null,
     merging: false,
+    mergePr: null,
     diff: null,
     ci: null,
     runStartedAt: null,
@@ -63,17 +64,17 @@ describe('TaskCard avatar', () => {
     expect(codex).not.toContain('>Cl<');
   });
 
-  it('合并中时按钮禁用并写着合并中', () => {
+  it('合并中时正文来自折好的 PR，合并中只出现一次', () => {
     const view = task('codex');
     view.status = 'running';
     view.merging = true;
+    view.mergePr = 50;
     const html = renderToStaticMarkup(
       <MemoryRouter>
         <TaskCard task={view} />
       </MemoryRouter>,
     );
-    expect(html).toContain('合并中');
-    expect(html).toContain('disabled');
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain(mergingCopy(50));
+    expect(html.match(/合并中/g)).toHaveLength(1);
   });
 });

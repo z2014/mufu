@@ -1,4 +1,4 @@
-import { columnOf, type TaskView } from '@mufu/core/view';
+import { columnOf, unreadPinCount, type TaskView } from '@mufu/core/view';
 import { Link } from 'react-router';
 
 import { cn } from '@/common/utils';
@@ -40,7 +40,7 @@ function Group({
       <p className="text-muted-foreground px-2.5 pb-1 pt-4 text-xs">{title}</p>
       {tasks.length === 0 ? <p className="text-muted-foreground px-2.5 text-xs">无</p> : null}
       {tasks.map((item) => {
-        const unread = item.pins.some((pin) => !pin.read);
+        const unread = unreadPinCount(item.pins) > 0;
         return (
           <Link
             key={item.id}

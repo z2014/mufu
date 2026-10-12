@@ -39,7 +39,7 @@ export function Component() {
     onSuccess: () => invalidate(),
   });
   const pins = useMutation({
-    mutationFn: () => readPins(taskId),
+    mutationFn: (pinIds: string[]) => readPins(taskId, pinIds),
     onSuccess: () => invalidate(),
   });
   const note = useMutation({
@@ -112,11 +112,13 @@ export function Component() {
             </header>
             <PinStrip
               pins={current.pins}
-              onReadAll={() => pins.mutate()}
+              onReadAll={() => pins.mutate(current.pins.filter((pin) => !pin.read).map((pin) => pin.id))}
               onOpen={(pin) => {
-                if (!pin.messageId) return;
-                setHighlightedId(pin.messageId);
-                document.getElementById(pinAnchor(pin.messageId))?.scrollIntoView({ block: 'center' });
+                if (pin.messageId) {
+                  setHighlightedId(pin.messageId);
+                  document.getElementById(pinAnchor(pin.messageId))?.scrollIntoView({ block: 'center' });
+                }
+                if (!pin.read) pins.mutate([pin.id]);
               }}
             />
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-14">

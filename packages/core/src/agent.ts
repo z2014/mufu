@@ -77,10 +77,11 @@ export const LEAD_PIN_AUTHOR = 'lead';
 /** 阶段 1 的桩给每个完成阶段钉的正文前缀。 */
 export const STAGE_DONE_PIN = '阶段完成';
 
-/** 事件里的作者写成 codex 或 claude。已经是这两个词时保持原样。 */
+/**
+ * 写进日志前的作者。不把 Codex / Claude 改成小写。
+ * 旧日志要换形状时走 `upgradeEvent`，不在这里打补丁。
+ */
 export function concreteAuthor(author: string): string {
-  if (author === 'codex' || author === 'Codex') return 'codex';
-  if (author === 'claude' || author === 'Claude') return 'claude';
   return author;
 }
 

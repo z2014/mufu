@@ -1,5 +1,4 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { X } from 'lucide-react';
 import * as React from 'react';
 
 import { cn } from '@/common/utils';
@@ -29,10 +28,10 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
       >
         {children}
         <DialogPrimitive.Close
-          className="focus-visible:ring-ring absolute right-4 top-4 rounded-sm opacity-70 focus-visible:outline-none focus-visible:ring-1"
+          className="text-foreground focus-visible:ring-ring absolute right-4 top-3 text-xl leading-none focus-visible:outline-none focus-visible:ring-1"
           aria-label="关闭"
         >
-          <X className="size-4" />
+          ×
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>

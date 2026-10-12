@@ -1,4 +1,5 @@
 import type { TaskView } from '@mufu/core/view';
+import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { DaemonError, rpc } from '@/api/client';
@@ -91,6 +92,7 @@ const taskViewSchema = z.object({
   runs: z.number(),
   workspacePath: z.string().nullable(),
   merging: z.boolean(),
+  mergePr: z.number().nullable(),
   diff: z
     .object({
       pr: z.number().nullable(),
@@ -141,8 +143,12 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
   return parsed.data;
 }
 
-export async function listTasks(): Promise<TaskView[]> {
+async function listTasks(): Promise<TaskView[]> {
   return parse(z.array(taskViewSchema), await rpc('task.list'), '任务列表');
+}
+
+export function useTasks() {
+  return useQuery({ queryKey: taskKeys.list, queryFn: listTasks });
 }
 
 export async function getTask(taskId: string): Promise<TaskView | null> {
@@ -173,8 +179,8 @@ export async function resolveGate(gateId: string, decision: 'approve' | 'reject'
   return rpc('gate.resolve', { gateId, decision, comment });
 }
 
-export async function readPins(taskId: string): Promise<TaskView | null> {
-  const result = await rpc('pin.readAll', { taskId });
+export async function readPins(taskId: string, pinIds: string[]): Promise<TaskView | null> {
+  const result = await rpc('pin.read', { taskId, pinIds });
   if (result === null || result === undefined) return null;
   return parse(taskViewSchema, result, '任务');
 }

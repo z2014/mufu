@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { EVENT_SCHEMA_VERSION } from '@mufu/schema';
 
 import { LEAD_PIN_AUTHOR, STAGE_DONE_PIN } from './agent.ts';
-import { eventSchemaVersion, foldTasks } from './fold.ts';
-import { stageAfterReject } from './model.ts';
+import { eventSchemaVersion, foldTasks, upgradeEvent } from './fold.ts';
+import { mergingCopy } from './github.ts';
+import { stageAfterReject, unreadPinCount } from './model.ts';
 import type { DomainEvent, Workflow } from './model.ts';
 
 const workflow: Workflow = {
@@ -160,6 +161,8 @@ describe('fold', () => {
       ev({ type: 'merge_requested', payload: { pr: 50 } }),
     ]);
     expect(tasks[0]?.merging).toBe(true);
+    expect(tasks[0]?.mergePr).toBe(50);
+    expect(tasks[0] && mergingCopy(tasks[0].mergePr ?? 0)).toBe('正在合并 PR #50');
     expect(tasks[0]?.status).toBe('running');
     const finished = foldTasks([
       ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
@@ -167,6 +170,43 @@ describe('fold', () => {
       ev({ type: 'merge_succeeded', payload: { pr: 50 } }),
     ]);
     expect(finished[0]?.merging).toBe(false);
+    expect(finished[0]?.mergePr).toBeNull();
+  });
+
+  it('pin.read 只标事件里列出的重点，未读条数由折叠得出', () => {
+    const pins = (ids: string[]) =>
+      ids.map((pinId) =>
+        ev({
+          id: pinId,
+          type: 'pin.added',
+          payload: {
+            pinId,
+            message: pinId,
+            reason: pinId,
+            author: LEAD_PIN_AUTHOR,
+            stageId: 'reproduce',
+          },
+        }),
+      );
+    const tasks = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ...pins(['p1', 'p2', 'p3']),
+      ev({ type: 'pin.read', payload: { pinIds: ['p1'] } }),
+    ]);
+    expect(tasks[0]?.pins.map((pin) => pin.read)).toEqual([true, false, false]);
+    expect(unreadPinCount(tasks[0]?.pins ?? [])).toBe(2);
+    const all = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ...pins(['p1', 'p2', 'p3']),
+      ev({ type: 'pin.read', payload: { pinIds: ['p1', 'p2', 'p3'] } }),
+    ]);
+    expect(unreadPinCount(all[0]?.pins ?? [])).toBe(0);
+    const untouched = foldTasks([
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),
+      ...pins(['p1']),
+      ev({ type: 'pin.read', payload: {} }),
+    ]);
+    expect(untouched[0]?.pins[0]?.read).toBe(false);
   });
 
   it('改动产物折成文件列表', () => {
@@ -195,8 +235,11 @@ describe('fold', () => {
     });
   });
 
-  it('缺省事件版本是 1，别的版本不折叠', () => {
-    expect(eventSchemaVersion(ev({ type: 'task.status', payload: { status: 'running' } }))).toBe(EVENT_SCHEMA_VERSION);
+  it('缺省事件版本是 1，别的版本交给 upgradeEvent 拒绝', () => {
+    const missing = ev({ type: 'task.status', payload: { status: 'running' } });
+    expect(eventSchemaVersion(missing)).toBe(EVENT_SCHEMA_VERSION);
+    expect(upgradeEvent(missing).schemaVersion).toBe(EVENT_SCHEMA_VERSION);
+    expect(() => upgradeEvent({ ...missing, schemaVersion: 2 })).toThrow(/事件版本/);
     expect(() =>
       foldTasks([
         ev({ type: 'task.created', schemaVersion: 2, payload: { seq: 1, title: 'x', prompt: 'y', workflow } }),

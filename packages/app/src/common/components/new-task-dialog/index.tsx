@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { agentIdentity } from '@/common/agent';
 import { Button } from '@/common/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/common/components/ui/dialog';
 import { Input } from '@/common/components/ui/input';
@@ -58,7 +59,9 @@ export function stageAgentLine(
   stages: { id: string; title: string }[],
   agents: Record<string, StageAgentChoice>,
 ): string {
-  return stages.map((stage) => `${stage.title} ${agents[stage.id] === 'claude' ? 'Claude' : 'Codex'}`).join(' · ');
+  return stages
+    .map((stage) => `${stage.title} ${agentIdentity(agents[stage.id] === 'claude' ? 'claude' : 'codex').displayName}`)
+    .join(' · ');
 }
 
 export function NewTaskDialog({
@@ -197,8 +200,8 @@ export function NewTaskDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="codex">Codex</SelectItem>
-                        <SelectItem value="claude">Claude</SelectItem>
+                        <SelectItem value="codex">{agentIdentity('codex').displayName}</SelectItem>
+                        <SelectItem value="claude">{agentIdentity('claude').displayName}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

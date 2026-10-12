@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { useOutletContext } from 'react-router';
 import { z } from 'zod';
 
 import {
@@ -10,11 +9,10 @@ import {
   fetchSecretStatus,
   removeOpenRouterKey,
   setOpenRouterKey,
-  type DoctorReport,
+  useDoctor,
 } from '@/api/connections';
 import { Button } from '@/common/components/ui/button';
 import { Input } from '@/common/components/ui/input';
-import type { WorkbenchContext } from '@/common/workbench';
 
 const keySchema = z.object({
   value: z.string().trim().min(1, '先贴上钥匙'),
@@ -36,8 +34,11 @@ const labels: Record<string, string> = {
 
 export function Component() {
   const queryClient = useQueryClient();
-  const { doctor, doctorPending, doctorFetching, doctorError, recheckDoctor } =
-    useOutletContext<WorkbenchContext<DoctorReport>>();
+  const doctorQuery = useDoctor();
+  const doctor = doctorQuery.data;
+  const doctorPending = doctorQuery.isPending;
+  const doctorFetching = doctorQuery.isFetching;
+  const doctorError = doctorQuery.error;
   const secret = useQuery({ queryKey: connectionKeys.secret, queryFn: fetchSecretStatus, retry: false });
   const form = useForm<KeyForm>({ resolver: zodResolver(keySchema), defaultValues: { value: '' } });
   const save = useMutation({
@@ -58,7 +59,13 @@ export function Component() {
     <>
       <header className="flex h-12 items-center gap-3 border-b px-4 md:px-7">
         <h1 className="font-semibold">连接</h1>
-        <Button type="button" size="sm" variant="outline" disabled={doctorFetching} onClick={recheckDoctor}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={doctorFetching}
+          onClick={() => void doctorQuery.refetch()}
+        >
           重新检测
         </Button>
       </header>

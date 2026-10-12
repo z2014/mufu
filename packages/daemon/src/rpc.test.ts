@@ -57,6 +57,28 @@ describe('rpc', () => {
     await expect(handle({ id: 3, method: 'task.merge' })).rejects.toThrow(/未知方法/);
   });
 
+  it('pin.read 和 pin.readAll 都把重点 id 交给引擎', async () => {
+    const seen: string[][] = [];
+    const handle = createRpc({
+      engine: {
+        ...engine(),
+        readPins(_taskId: string, pinIds: string[]): never {
+          seen.push(pinIds);
+          throw new Error('recorded');
+        },
+      },
+      secrets: createMemorySecretStore(),
+      loadDoctor: () => Promise.resolve({ tools: [], ignoredEnvKeys: [], configKeys: [], note: '' }),
+    });
+    await expect(handle({ id: 1, method: 'pin.read', params: { taskId: 't', pinIds: ['p1'] } })).rejects.toThrow(
+      'recorded',
+    );
+    await expect(
+      handle({ id: 2, method: 'pin.readAll', params: { taskId: 't', pinIds: ['p1', 'p2'] } }),
+    ).rejects.toThrow('recorded');
+    expect(seen).toEqual([['p1'], ['p1', 'p2']]);
+  });
+
   it('workdir.check 和创建任务用同一套拒绝', async () => {
     const handle = createRpc({
       engine: engine(),

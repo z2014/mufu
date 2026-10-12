@@ -25,6 +25,11 @@ export type DiffStat = {
 
 export type MergeFailureReason = 'conflict' | 'ci_failed' | 'environment';
 
+/** 合并进行中的卡片正文。编号来自已经折好的 `merge_requested`。 */
+export function mergingCopy(pr: number): string {
+  return `正在合并 PR #${pr}`;
+}
+
 /** 界面只按类别显示这三句，不解析命令输出。 */
 export function mergeFailureCopy(reason: MergeFailureReason): string {
   if (reason === 'conflict') return '合并撞上了冲突。在工作目录里解决后，再点一次验收并合并。';

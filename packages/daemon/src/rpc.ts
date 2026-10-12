@@ -61,12 +61,18 @@ export function createRpc(deps: {
           params.decision === 'reject' ? 'reject' : 'approve',
           typeof params.comment === 'string' ? params.comment : undefined,
         );
+      case 'pin.read':
       case 'pin.readAll':
-        return engine.readPins(String(params.taskId));
+        return engine.readPins(String(params.taskId), pinIdsOf(params.pinIds));
       default:
         throw new Error(`未知方法 ${request.method}`);
     }
   };
+}
+
+function pinIdsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
 
 function agentOverrides(value: unknown): Record<string, 'codex' | 'claude'> | undefined {

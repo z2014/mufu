@@ -29,6 +29,7 @@ function task(status: TaskStatus, seq: number, attention: TaskView['attention'])
     runs: 0,
     workspacePath: null,
     merging: false,
+    mergePr: null,
     diff: null,
     ci: null,
     runStartedAt: null,

@@ -29,6 +29,7 @@ function named(title: string, status: TaskView['status']): TaskView {
     runs: 0,
     workspacePath: null,
     merging: false,
+    mergePr: null,
     diff: null,
     ci: null,
     runStartedAt: null,

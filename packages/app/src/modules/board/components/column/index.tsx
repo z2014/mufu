@@ -33,7 +33,6 @@ export function BoardColumn({
         <span className="text-muted-foreground font-normal">{sorted.length}</span>
         <span className="text-muted-foreground ml-auto text-[11px] font-normal">{meta.hint}</span>
       </header>
-      {sorted.length === 0 ? <p className="text-muted-foreground px-1.5 text-xs">这一列还没有任务</p> : null}
       {sorted.map((task) => (
         <TaskCard
           key={task.id}
@@ -44,9 +43,6 @@ export function BoardColumn({
           onDecide={(decision, comment) => onDecide?.(task, decision, comment)}
         />
       ))}
-      {column === 'to_review' ? (
-        <p className="text-muted-foreground mt-3 text-center text-[11.5px]">验收后任务完成，离开看板</p>
-      ) : null}
     </section>
   );
 }

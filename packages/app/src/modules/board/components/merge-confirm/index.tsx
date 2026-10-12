@@ -29,7 +29,7 @@ export function MergeConfirm({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{mergeConfirmTitle(diff, fallbackPr)}</DialogTitle>
-          <DialogDescription>确认后由本机 gh 合并。这一步不会在页面里跑 git。</DialogDescription>
+          <DialogDescription>合并后任务完成，会离开看板。</DialogDescription>
         </DialogHeader>
         <div className="mt-4 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router';
 
-import { DaemonError, resolveGate, taskKeys } from '@/api/tasks';
+import { DaemonError, resolveGate, taskKeys, useTasks } from '@/api/tasks';
 import { DiffDialog } from '@/common/components/diff-dialog';
 import { Button } from '@/common/components/ui/button';
 import type { WorkbenchContext } from '@/common/workbench';
@@ -21,7 +21,11 @@ function group(tasks: TaskView[]): Record<Column, TaskView[]> {
 }
 
 export function Component() {
-  const { tasks, tasksPending, tasksError, openNewTask } = useOutletContext<WorkbenchContext>();
+  const { openNewTask } = useOutletContext<WorkbenchContext>();
+  const tasksQuery = useTasks();
+  const tasks = tasksQuery.data;
+  const tasksPending = tasksQuery.isPending;
+  const tasksError = tasksQuery.error;
   const queryClient = useQueryClient();
   const gate = useMutation({
     mutationFn: (input: { gateId: string; decision: 'approve' | 'reject'; comment?: string }) =>
