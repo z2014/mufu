@@ -584,8 +584,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
         return { ...stage, agent: override };
       }),
     };
-    const repoPath = input.repoPath?.trim() ?? '';
-    await checkWorkdir(repoPath);
+    const repoPath = await checkWorkdir(input.repoPath);
     const taskId = randomUUID();
     const seq = views().length + 1;
     log.append({

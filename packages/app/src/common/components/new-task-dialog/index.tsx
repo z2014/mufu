@@ -55,6 +55,20 @@ function defaultsFor(workflow: WorkflowChoice | undefined): Record<string, Stage
   return agents;
 }
 
+export function WorkdirAlert({ message }: { message: string }) {
+  return (
+    <p className="text-destructive flex items-center gap-1.5 text-sm font-medium" role="alert">
+      <span
+        className="bg-primary text-primary-foreground inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+        aria-hidden
+      >
+        !
+      </span>
+      {message}
+    </p>
+  );
+}
+
 export function stageAgentLine(
   stages: { id: string; title: string }[],
   agents: Record<string, StageAgentChoice>,
@@ -238,17 +252,7 @@ export function NewTaskDialog({
               </span>
               <span className="text-muted-foreground text-xs">{form.formState.errors.repoPath?.message}</span>
             </label>
-            {inlineError ? (
-              <p className="text-destructive flex items-center gap-1.5 text-sm font-medium" role="alert">
-                <span
-                  className="bg-primary text-primary-foreground inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                  aria-hidden
-                >
-                  !
-                </span>
-                {inlineError}
-              </p>
-            ) : null}
+            {inlineError ? <WorkdirAlert message={inlineError} /> : null}
           </div>
           <div className="mt-4 flex shrink-0 justify-end gap-2 pb-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

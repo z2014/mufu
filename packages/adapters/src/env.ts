@@ -23,7 +23,7 @@ export function clearResolvedCli(): void {
 
 /**
  * 登录 shell 的 `command -v`。结果在这个守护进程里按名字记住。
- * 只接受绝对路径。GUI 启动时没有终端 PATH，不能直接用 `claude`。
+ * 只接受绝对路径。GUI 启动时没有终端 PATH，打包后的应用 PATH 也很短，不能直接用 `claude`、`git` 或 `gh`。
  */
 export async function resolveCli(name: CliName, env: NodeJS.ProcessEnv = process.env): Promise<string | null> {
   const key = cacheKey(name, env);
