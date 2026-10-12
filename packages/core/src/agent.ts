@@ -23,7 +23,10 @@ export type AgentEvent =
   | { type: 'interrupted' }
   | {
       type: 'environment_failure';
+      /** 给人看的句子。 */
       message: string;
+      /** SDK 或进程原文。只写入事件日志，界面不读。 */
+      raw?: string;
       tool?: string;
       source?: string;
       failure: 'rate_limit' | 'auth' | 'network';
@@ -68,6 +71,60 @@ export class SubscriptionRefused extends Error {
   ) {
     super(`${tool} 不是订阅登录（${source}）`);
     this.name = 'SubscriptionRefused';
+  }
+}
+
+/** 适配器启动失败的种类。界面只认这个，不认 SDK 原文。 */
+export type AgentStartupKind =
+  'cli_not_found' | 'not_logged_in' | 'not_subscription' | 'rate_limit' | 'network' | 'launch_failed';
+
+const STARTUP_KINDS: readonly AgentStartupKind[] = [
+  'cli_not_found',
+  'not_logged_in',
+  'not_subscription',
+  'rate_limit',
+  'network',
+  'launch_failed',
+];
+
+export function isStartupKind(source: string | undefined): source is AgentStartupKind {
+  return STARTUP_KINDS.some((kind) => kind === source);
+}
+
+/** 这类失败的卡片动作去设置页。合并失败仍留在任务上。 */
+export function attentionSettingsPath(source: string | undefined): '/settings' | null {
+  return isStartupKind(source) ? '/settings' : null;
+}
+
+const TOOL_NAME = { codex: 'Codex', claude: 'Claude' } as const;
+
+/** 给人看的句子。原始错误只进事件日志。 */
+export function startupCopy(kind: AgentStartupKind, tool: 'codex' | 'claude'): string {
+  const name = TOOL_NAME[tool];
+  switch (kind) {
+    case 'cli_not_found':
+      return `找不到本机的 ${name}，去设置页检测`;
+    case 'not_logged_in':
+      return `${name} 还没登录，去设置页检测`;
+    case 'not_subscription':
+      return `${name} 不是订阅登录，去设置页检测`;
+    case 'rate_limit':
+      return `${name} 被限流了，去设置页检测`;
+    case 'network':
+      return `连不上本机的 ${name}，去设置页检测`;
+    case 'launch_failed':
+      return `${name} 没有启动，去设置页检测`;
+  }
+}
+
+export class AgentStartupError extends Error {
+  constructor(
+    readonly kind: AgentStartupKind,
+    readonly tool: 'codex' | 'claude',
+    readonly raw: string,
+  ) {
+    super(raw);
+    this.name = 'AgentStartupError';
   }
 }
 

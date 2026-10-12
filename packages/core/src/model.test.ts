@@ -53,6 +53,12 @@ describe('attempt vs run', () => {
     expect(countsAsAttempt({ kind: 'conflict', detail: 'cannot be cleanly created' })).toBe(true);
     expect(countsAsAttempt({ kind: 'ci_failed', detail: 'failing checks' })).toBe(true);
     expect(countsAsAttempt({ kind: 'environment', detail: 'gh auth login' })).toBe(false);
+    expect(countsAsAttempt({ kind: 'cli_not_found', detail: 'Native CLI binary for darwin-arm64 not found' })).toBe(
+      false,
+    );
+    expect(countsAsAttempt({ kind: 'not_logged_in', detail: 'not logged' })).toBe(false);
+    expect(countsAsAttempt({ kind: 'not_subscription', detail: 'apiKeySource=apiKey' })).toBe(false);
+    expect(countsAsAttempt({ kind: 'launch_failed', detail: 'missing rollout' })).toBe(false);
   });
 });
 

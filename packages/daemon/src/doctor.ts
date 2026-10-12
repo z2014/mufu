@@ -7,6 +7,8 @@ import {
   detectConfigKeySources,
   readClaudeSubscription,
   readCodexSubscription,
+  resolveCli,
+  type CliName,
   type ConfigKeyFinding,
   type LoginVerdict,
 } from '@mufu/adapters';
@@ -61,13 +63,7 @@ const INSTALL = {
   gh: 'brew install gh',
 } as const;
 
-function check(
-  name: CheckName,
-  dependsOn: CheckName | null,
-  passed: boolean,
-  detail: string,
-  fix: string,
-): CheckItem {
+function check(name: CheckName, dependsOn: CheckName | null, passed: boolean, detail: string, fix: string): CheckItem {
   return {
     name,
     dependsOn,
@@ -89,17 +85,6 @@ function applyDependencies(items: CheckItem[]): CheckItem[] {
     byName.set(item.name, skipped);
     return skipped;
   });
-}
-
-async function loginShellPath(name: string, env: NodeJS.ProcessEnv): Promise<string | null> {
-  const shell = env.SHELL && env.SHELL.length > 0 ? env.SHELL : 'bash';
-  try {
-    const { stdout } = await exec(shell, ['-lc', `command -v ${name}`], { env });
-    const path = stdout.trim().split('\n').at(-1)?.trim() ?? '';
-    return path.length > 0 ? path : null;
-  } catch {
-    return null;
-  }
 }
 
 async function ghLoggedIn(bin: string, env: NodeJS.ProcessEnv): Promise<boolean> {
@@ -192,7 +177,13 @@ export async function doctor(input?: {
   const env = input?.env ?? process.env;
   const userHome = input?.userHome ?? homedir();
   const probe = input?.probe ?? defaultProbe;
-  const which = input?.which ?? ((name: string) => loginShellPath(name, env));
+  const which =
+    input?.which ??
+    ((name: string) => {
+      if (name !== 'codex' && name !== 'claude' && name !== 'gh') return Promise.resolve(null);
+      const cli: CliName = name;
+      return resolveCli(cli, env);
+    });
   const ghAuth = input?.ghAuth ?? ((bin: string) => ghLoggedIn(bin, env));
   const [codexPath, claudePath, ghPath] = await Promise.all([which('codex'), which('claude'), which('gh')]);
   const [codexVerdict, claudeVerdict, ghOk] = await Promise.all([

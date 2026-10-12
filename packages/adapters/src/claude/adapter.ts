@@ -1,5 +1,6 @@
 import {
   SubscriptionRefused,
+  startupCopy,
   type AgentAdapter,
   type AgentEvent,
   type AgentSession,
@@ -7,7 +8,9 @@ import {
   type StartSession,
 } from '@mufu/core';
 
+import { localCli } from '../env.ts';
 import { EventQueue } from '../line-queue.ts';
+import { classifyLaunchError, coarseFailure } from '../startup.ts';
 import { buildClaudeLaunchOptions } from './options.ts';
 import { createPromptGate, normalizeClaudeMessage, operationForTool, subscriptionFromClaudeInit } from './protocol.ts';
 
@@ -25,17 +28,22 @@ export function createClaudeAdapter(options?: {
   env?: NodeJS.ProcessEnv;
   /** SDK 消息原样交给调用方。verify:mac 用来落盘。 */
   onRaw?: (message: unknown) => void;
+  /** 测试注入。缺省时加载 Claude Agent SDK。 */
+  query?: (params: { prompt: AsyncIterable<unknown>; options: Record<string, unknown> }) => QueryHandle;
 }): AgentAdapter {
   return {
     kind: 'claude',
     async startSession(input: StartSession): Promise<AgentSession> {
-      const sdk = (await import('@anthropic-ai/claude-agent-sdk')) as {
-        query: (params: { prompt: AsyncIterable<unknown>; options: Record<string, unknown> }) => QueryHandle;
-      };
+      const bin = await localCli('claude', options?.bin, options?.env);
+      const sdk = options?.query
+        ? { query: options.query }
+        : ((await import('@anthropic-ai/claude-agent-sdk')) as {
+            query: (params: { prompt: AsyncIterable<unknown>; options: Record<string, unknown> }) => QueryHandle;
+          });
       const gate = createPromptGate(input.prompt);
       const launch = buildClaudeLaunchOptions({
         cwd: input.workspacePath,
-        bin: options?.bin,
+        bin,
         env: options?.env,
         resumeSessionId: input.resumeSessionId,
       });
@@ -55,30 +63,36 @@ export function createClaudeAdapter(options?: {
         verdict = value;
         resolveVerdict(value);
       };
+      let startupFailure: ReturnType<typeof classifyLaunchError> | null = null;
 
-      const query = sdk.query({
-        prompt: gate.iterable,
-        options: {
-          ...launch,
-          canUseTool: async (toolName: string, toolInput: Record<string, unknown>) => {
-            const requestId = `claude-${requestSerial}`;
-            requestSerial += 1;
-            const operation = operationForTool(toolName);
-            const command = typeof toolInput.command === 'string' ? toolInput.command : '';
-            events.push({
-              type: 'approval_request',
-              requestId,
-              operation,
-              summary: command || toolName,
-              detail: toolName,
-              gate: 'stage',
-            });
-            const decision = await new Promise<GateDecision>((resolve) => decisions.set(requestId, resolve));
-            if (decision === 'approve') return { behavior: 'allow' as const };
-            return { behavior: 'deny' as const, message: '幕府门禁打回了这次操作' };
+      let query: QueryHandle;
+      try {
+        query = sdk.query({
+          prompt: gate.iterable,
+          options: {
+            ...launch,
+            canUseTool: async (toolName: string, toolInput: Record<string, unknown>) => {
+              const requestId = `claude-${requestSerial}`;
+              requestSerial += 1;
+              const operation = operationForTool(toolName);
+              const command = typeof toolInput.command === 'string' ? toolInput.command : '';
+              events.push({
+                type: 'approval_request',
+                requestId,
+                operation,
+                summary: command || toolName,
+                detail: toolName,
+                gate: 'stage',
+              });
+              const decision = await new Promise<GateDecision>((resolve) => decisions.set(requestId, resolve));
+              if (decision === 'approve') return { behavior: 'allow' as const };
+              return { behavior: 'deny' as const, message: '幕府门禁打回了这次操作' };
+            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        throw classifyLaunchError('claude', error);
+      }
 
       const pump = (async () => {
         try {
@@ -107,12 +121,14 @@ export function createClaudeAdapter(options?: {
             }
           }
         } catch (error) {
+          startupFailure = classifyLaunchError('claude', error);
           events.push({
             type: 'environment_failure',
-            message: error instanceof Error ? error.message : String(error),
+            message: startupCopy(startupFailure.kind, 'claude'),
+            raw: startupFailure.raw,
             tool: 'claude',
-            source: 'sdk',
-            failure: 'network',
+            source: startupFailure.kind,
+            failure: coarseFailure(startupFailure.kind),
           });
         } finally {
           if (!checked) {
@@ -131,6 +147,7 @@ export function createClaudeAdapter(options?: {
         }),
       ]);
       if (!decision.ok) {
+        if (startupFailure) throw startupFailure;
         throw new SubscriptionRefused('claude', decision.source);
       }
 

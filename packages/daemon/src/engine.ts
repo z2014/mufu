@@ -5,15 +5,18 @@ import {
   MAX_ATTEMPTS,
   MAX_PINS_PER_STAGE,
   MergeFailure,
+  AgentStartupError,
   SubscriptionRefused,
   countsAsAttempt,
   foldTask,
   foldTasks,
   LEAD_PIN_AUTHOR,
   concreteAuthor,
+  isStartupKind,
   leadIntro,
   mergeFailureCopy,
   stageDoneText,
+  startupCopy,
   type AgentAdapter,
   type AgentEvent,
   type AgentKind,
@@ -107,15 +110,41 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
   }
 
   function failTask(taskId: string, error: unknown, tool: string): void {
-    if (error instanceof SubscriptionRefused) {
+    const agent = tool === 'codex' || tool === 'claude' ? tool : 'codex';
+    if (error instanceof AgentStartupError) {
       log.append({
         taskId,
         type: 'environment.failed',
-        payload: { tool: error.tool, source: error.source, message: error.message },
+        payload: {
+          tool: error.tool,
+          source: error.kind,
+          message: startupCopy(error.kind, error.tool),
+          raw: error.raw,
+        },
+      });
+    } else if (error instanceof SubscriptionRefused) {
+      log.append({
+        taskId,
+        type: 'environment.failed',
+        payload: {
+          tool: error.tool,
+          source: 'not_subscription',
+          message: startupCopy('not_subscription', error.tool),
+          raw: error.source,
+        },
       });
     } else {
-      const message = error instanceof Error ? error.message : String(error);
-      log.append({ taskId, type: 'environment.failed', payload: { message, tool, source: 'launch' } });
+      const raw = error instanceof Error ? error.message : String(error);
+      log.append({
+        taskId,
+        type: 'environment.failed',
+        payload: {
+          message: startupCopy('launch_failed', agent),
+          tool: agent,
+          source: 'launch_failed',
+          raw,
+        },
+      });
     }
     setStatus(taskId, 'needs_you');
   }
@@ -498,10 +527,19 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       applyResolution(taskId, gateId, resolution, session.followUp);
       if (!resolution.cancelled) await session.decide(event.requestId, resolution.decision);
     } else if (event.type === 'environment_failure') {
+      const agent = event.tool === 'codex' || event.tool === 'claude' ? event.tool : null;
+      const kind = agent && isStartupKind(event.source) ? event.source : null;
+      const message = agent && kind ? startupCopy(kind, agent) : event.message;
+      const raw = kind ? (event.raw ?? event.message) : event.raw;
       log.append({
         taskId,
         type: 'environment.failed',
-        payload: { message: event.message, tool: event.tool, source: event.source },
+        payload: {
+          message,
+          tool: event.tool,
+          source: event.source,
+          ...(raw ? { raw } : {}),
+        },
       });
       setStatus(taskId, 'needs_you');
     } else if (event.type === 'interrupted') {

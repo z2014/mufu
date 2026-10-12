@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { assertAsarHasDistElectron, macUniversalAsarPath } from './asar-check.ts';
 import { bundleDaemon } from './bundle-daemon.ts';
+import { assertPackageOmitsPlatformSdk } from './platform-sdk.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -65,7 +66,9 @@ async function main(): Promise<void> {
   await bundleDaemon(repoRoot);
   await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--mac', '--config', 'electron-builder.yml']);
   const appPath = join(repoRoot, 'release/mac-universal/mufu.app');
-  await assertAsarHasDistElectron(repoRoot, macUniversalAsarPath(repoRoot));
+  const asarPath = macUniversalAsarPath(repoRoot);
+  await assertAsarHasDistElectron(repoRoot, asarPath);
+  await assertPackageOmitsPlatformSdk(repoRoot, asarPath, join(appPath, 'Contents'));
   await adHocSign(appPath);
   process.stdout.write('打好了：release/mac-universal/mufu.app（ad-hoc 签名）。\n');
 }

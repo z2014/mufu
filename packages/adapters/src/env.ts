@@ -1,6 +1,62 @@
+import { execFile } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import { AgentStartupError } from '@mufu/core';
+
+const execFileAsync = promisify(execFile);
+
+export type CliName = 'claude' | 'codex' | 'git' | 'gh';
+
+const resolved = new Map<string, string | null>();
+
+function cacheKey(name: CliName, env: NodeJS.ProcessEnv): string {
+  return `${name}\0${env.SHELL ?? ''}\0${env.HOME ?? ''}\0${env.PATH ?? ''}`;
+}
+
+/** 测试换了 shell 之后清掉本进程里记住的路径。 */
+export function clearResolvedCli(): void {
+  resolved.clear();
+}
+
+/**
+ * 登录 shell 的 `command -v`。结果在这个守护进程里按名字记住。
+ * 只接受绝对路径。GUI 启动时没有终端 PATH，不能直接用 `claude`。
+ */
+export async function resolveCli(name: CliName, env: NodeJS.ProcessEnv = process.env): Promise<string | null> {
+  const key = cacheKey(name, env);
+  const cached = resolved.get(key);
+  if (cached !== undefined) return cached;
+  const shell = env.SHELL && env.SHELL.length > 0 ? env.SHELL : 'bash';
+  let path: string | null = null;
+  try {
+    const { stdout } = await execFileAsync(shell, ['-lc', `command -v ${name}`], {
+      env,
+      timeout: 5000,
+      killSignal: 'SIGKILL',
+    });
+    const line = stdout.trim().split('\n').at(-1)?.trim() ?? '';
+    path = line.startsWith('/') ? line : null;
+  } catch {
+    path = null;
+  }
+  resolved.set(key, path);
+  return path;
+}
+
+/** 显式路径优先。否则用 resolveCli，找不到就抛 cli_not_found。 */
+export async function localCli(
+  name: 'claude' | 'codex',
+  explicit: string | undefined,
+  env?: NodeJS.ProcessEnv,
+): Promise<string> {
+  if (explicit && explicit.length > 0) return explicit;
+  const path = await resolveCli(name, env);
+  if (!path) throw new AgentStartupError('cli_not_found', name, `${name} 不在登录 shell 的 PATH 里`);
+  return path;
+}
 
 export const BLOCKED_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY'] as const;
 

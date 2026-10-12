@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { resolveCli } from '@mufu/adapters';
 import {
   MergeFailure,
   mergeFailureCopy,
@@ -61,14 +62,7 @@ export function ciStateFromRollup(rollup: unknown): CiState {
 }
 
 async function whichGh(): Promise<string | null> {
-  const shell = process.env.SHELL && process.env.SHELL.length > 0 ? process.env.SHELL : 'bash';
-  try {
-    const { stdout } = await execFileAsync(shell, ['-lc', 'command -v gh'], { timeout: 5000 });
-    const path = stdout.trim().split('\n').at(-1)?.trim() ?? '';
-    return path.startsWith('/') ? path : null;
-  } catch {
-    return null;
-  }
+  return resolveCli('gh');
 }
 
 function textOf(error: unknown): string {

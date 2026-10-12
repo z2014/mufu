@@ -76,7 +76,7 @@
 
 | 项                                                                                                                                                                      | 在哪验                                    |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `pnpm build:mac` 打印 git sha，先删 `release/` 和 `dist-electron`，打出 ad-hoc 重签的 mufu.app（asar 缺 `dist-electron` 文件或 `codesign --sign -` 校验失败则构建失败） | Mac。Linux 上这条命令会说明打不了包并退出 |
+| `pnpm build:mac` 打印 git sha，先删 `release/` 和 `dist-electron`，打出 ad-hoc 重签的 mufu.app（asar 缺 `dist-electron` 文件、含 Claude SDK 平台二进制，或 `codesign --sign -` 校验失败则构建失败） | Mac。Linux 上这条命令会说明打不了包并退出 |
 | 双击启动，不需要终端。启动时安装或刷新用户级 LaunchAgent（`~/Library/LaunchAgents`，不是 LaunchDaemon），用绝对路径跑打包进去的守护进程，然后连上                       | Mac                                       |
 | 状态在重启后还在：SQLite 在 `~/Library/Application Support/mufu`                                                                                                        | 日志本身用替身测。这个目录要 Mac          |
 | README 写了 clone、`pnpm install`、`pnpm start`、`pnpm build:mac`、本机打出的包直接双击、下载的包要右键打开或 `xattr -dr com.apple.quarantine`、怎么卸 LaunchAgent      | 替身（读文档）                            |

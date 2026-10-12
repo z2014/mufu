@@ -30,11 +30,16 @@ export { eventSchemaVersion, foldTask, foldTasks, upgradeEvent } from './fold.ts
 export {
   LEAD_PIN_AUTHOR,
   STAGE_DONE_PIN,
+  AgentStartupError,
   SubscriptionRefused,
+  attentionSettingsPath,
   concreteAuthor,
+  isStartupKind,
   leadIntro,
   stageDoneText,
+  startupCopy,
 } from './agent.ts';
+export type { AgentStartupKind } from './agent.ts';
 export type {
   AgentAdapter,
   AgentEvent,

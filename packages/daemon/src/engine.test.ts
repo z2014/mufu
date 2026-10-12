@@ -6,10 +6,12 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import {
+  AgentStartupError,
   LEAD_PIN_AUTHOR,
   MergeFailure,
   mergeFailureCopy,
   stageDoneText,
+  startupCopy,
   type AgentAdapter,
   type AgentSession,
   type GitHub,
@@ -89,7 +91,10 @@ function github(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): GitH
   };
 }
 
-async function boot(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): Promise<{
+async function boot(
+  behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment',
+  codex: AgentAdapter = adapter(),
+): Promise<{
   engine: TaskEngine;
   gh: ReturnType<typeof github>;
   repo: string;
@@ -110,7 +115,7 @@ async function boot(behavior: 'ok' | 'conflict' | 'ci_failed' | 'environment'): 
     home,
     log,
     workflows: loadWorkflows(dir),
-    adapters: { codex: adapter(), claude: adapter() },
+    adapters: { codex, claude: adapter() },
     fixture: null,
     github: gh,
     agent: 'codex',
@@ -394,6 +399,67 @@ describe('merge completes the task', () => {
       engine.shutdown();
       log.close();
       rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('启动失败进等你，原始错误只留在日志里，不计入尝试', async () => {
+    const raw = 'Native CLI binary for darwin-arm64 not found';
+    const { engine, repo, close } = await boot('ok', {
+      kind: 'codex',
+      startSession() {
+        return Promise.reject(new AgentStartupError('cli_not_found', 'codex', raw));
+      },
+    });
+    try {
+      const created = await engine.createTask({ title: '没有命令', prompt: '过', repoPath: repo });
+      const stuck = await until(engine, created.id, (task) => task.status === 'needs_you' && task.attention !== null);
+      expect(stuck.attention?.message).toBe(startupCopy('cli_not_found', 'codex'));
+      expect(stuck.attention?.source).toBe('cli_not_found');
+      expect(stuck.attempts).toBe(0);
+      expect(JSON.stringify(stuck)).not.toContain(raw);
+      const failed = engine.events(created.id).find((event) => event.type === 'environment.failed');
+      expect(failed?.payload.raw).toBe(raw);
+      expect(failed?.payload.message).toBe('找不到本机的 Codex，去设置页检测');
+    } finally {
+      close();
+    }
+  });
+
+  it('运行中的环境失败也用类型对应的句子，不把 SDK 原文放进卡片', async () => {
+    const raw = 'Native CLI binary for darwin-arm64 not found';
+    const { engine, repo, close } = await boot('ok', {
+      kind: 'codex',
+      startSession() {
+        return Promise.resolve({
+          sessionId: 'codex-session',
+          events: (async function* events() {
+            yield {
+              type: 'environment_failure' as const,
+              message: raw,
+              raw,
+              tool: 'codex',
+              source: 'cli_not_found',
+              failure: 'auth' as const,
+            };
+          })(),
+          decide() {
+            return Promise.resolve();
+          },
+          interrupt() {
+            return Promise.resolve();
+          },
+        });
+      },
+    });
+    try {
+      const created = await engine.createTask({ title: '跑起来才失败', prompt: '过', repoPath: repo });
+      const stuck = await until(engine, created.id, (task) => task.status === 'needs_you' && task.attention !== null);
+      expect(stuck.attention?.message).toBe('找不到本机的 Codex，去设置页检测');
+      expect(stuck.attempts).toBe(0);
+      expect(JSON.stringify(stuck)).not.toContain('darwin-arm64');
+      expect(engine.events(created.id).find((event) => event.type === 'environment.failed')?.payload.raw).toBe(raw);
+    } finally {
+      close();
     }
   });
 });

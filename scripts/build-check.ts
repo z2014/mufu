@@ -9,6 +9,7 @@ import { DAEMON_WS_PORT } from '@mufu/schema';
 
 import { assertAsarHasDistElectron } from './asar-check.ts';
 import { bundleDaemon } from './bundle-daemon.ts';
+import { assertPackageOmitsPlatformSdk } from './platform-sdk.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const unpackedDir = join(repoRoot, 'release/linux-unpacked');
@@ -132,6 +133,11 @@ async function main(): Promise<void> {
   const problems: string[] = [];
   try {
     await assertAsarHasDistElectron(repoRoot, asarPath);
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  try {
+    await assertPackageOmitsPlatformSdk(repoRoot, asarPath, unpackedDir);
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
   }

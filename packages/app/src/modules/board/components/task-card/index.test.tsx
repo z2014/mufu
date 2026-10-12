@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { mergingCopy, type TaskView } from '@mufu/core/view';
+import { mergingCopy, startupCopy, type TaskView } from '@mufu/core/view';
 
 import { TaskCard } from './index.tsx';
 
@@ -76,5 +76,27 @@ describe('TaskCard avatar', () => {
     );
     expect(html).toContain(mergingCopy(50));
     expect(html.match(/合并中/g)).toHaveLength(1);
+  });
+
+  it('命令找不到时显示类型对应的句子，点击去设置，不显示 SDK 原文', () => {
+    const view = task('claude');
+    view.status = 'needs_you';
+    view.attention = {
+      message: startupCopy('cli_not_found', 'claude'),
+      tool: 'claude',
+      source: 'cli_not_found',
+    };
+    const raw = 'Native CLI binary for darwin-arm64 not found';
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <TaskCard task={view} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('找不到本机的 Claude，去设置页检测');
+    expect(html).toContain('href="/settings"');
+    expect(html).toContain('去设置');
+    expect(html).toContain('!');
+    expect(html).not.toContain(raw);
+    expect(html).not.toContain('darwin-arm64');
   });
 });
