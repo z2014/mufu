@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { assertAsarHasDistElectron, macUniversalAsarPath } from './asar-check.ts';
 import { bundleDaemon } from './bundle-daemon.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,16 +32,41 @@ function run(command: string, args: string[]): Promise<void> {
   });
 }
 
+function gitSha(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['rev-parse', 'HEAD'], { cwd: repoRoot });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(`git rev-parse HEAD 退出 ${code ?? 1}\n${stderr}`));
+    });
+  });
+}
+
 async function main(): Promise<void> {
+  const sha = await gitSha();
+  process.stdout.write(`git ${sha}\n`);
   const blocked = macBuildUnavailableMessage(process.platform);
   if (blocked) {
     process.stderr.write(`${blocked}\n`);
     process.exit(1);
   }
+  rmSync(join(repoRoot, 'release'), { recursive: true, force: true });
+  rmSync(join(repoRoot, 'packages/app/dist-electron'), { recursive: true, force: true });
   await run('pnpm', ['--filter', '@mufu/app', 'build']);
   await bundleDaemon(repoRoot);
   await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--mac', '--config', 'electron-builder.yml']);
-  await adHocSign(join(repoRoot, 'release/mac-universal/mufu.app'));
+  const appPath = join(repoRoot, 'release/mac-universal/mufu.app');
+  await assertAsarHasDistElectron(repoRoot, macUniversalAsarPath(repoRoot));
+  await adHocSign(appPath);
   process.stdout.write('打好了：release/mac-universal/mufu.app（ad-hoc 签名）。\n');
 }
 

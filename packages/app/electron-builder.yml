@@ -20,6 +20,11 @@ mac:
   hardenedRuntime: false
   gatekeeperAssess: false
   notarize: false
+  # 显式打开 asar 合并。@electron/universal 在文件只出现在一个架构、或不匹配 singleArchFiles，
+  # 以及两边都有但内容不同的非 Mach-O 文件时直接抛错，不会悄悄丢掉。内容相同的 JS 会留下来。
+  # false 且两边哈希不同时，app.asar 会换成入口桩，真正的文件进 app-x64.asar / app-arm64.asar。
+  # 不设 singleArchFiles / x64ArchFiles：独有文件应当让构建失败。
+  mergeASARs: true
   category: public.app-category.developer-tools
   target:
     - target: dir

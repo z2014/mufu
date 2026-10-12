@@ -120,7 +120,7 @@ codesign --force --deep --sign - release/mac-universal/mufu.app
 codesign --verify --deep --strict --verbose=2 release/mac-universal/mufu.app
 ```
 
-校验失败则 `pnpm build:mac` 失败。Linux 上这条命令会说明打不了包，并跳过 codesign。Linux 上能做的打包和启动检查是 `pnpm build:check`。
+校验失败则 `pnpm build:mac` 失败。命令一开始打印当前 git sha。在 macOS 上它会先删掉 `release/` 和 `packages/app/dist-electron`，再编译、打包。打包之后用和 `pnpm build:check` 相同的核对：通用包 `Contents/Resources/app.asar` 必须含有这次编译出的每个 `dist-electron/*.js`，缺了就失败。`mergeASARs: true` 时，两边都有且内容相同的 JS 会留在合并后的 asar 里；只在一边出现、或内容不同的非 Mach-O 文件会让合并失败，而不是被丢掉。electron-builder 缓存的是 Electron 压缩包，不保存 `app.asar`。包里没有 `dist-electron/plist.js`，说明打的是旧的 files 列表，或 `release/`、`dist-electron` 是上次留下的。Linux 上这条命令会说明打不了包，并跳过 codesign，也不会删这些目录。Linux 上能做的打包和启动检查是 `pnpm build:check`。
 
 在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性。打不开时先清掉扩展属性，再在访达里右键 `mufu.app`，选「打开」：
 

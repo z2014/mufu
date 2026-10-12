@@ -1,13 +1,13 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
-import { createRequire } from 'node:module';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DAEMON_WS_PORT } from '@mufu/schema';
 
+import { assertAsarHasDistElectron } from './asar-check.ts';
 import { bundleDaemon } from './bundle-daemon.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,47 +24,6 @@ function run(command: string, args: string[]): Promise<void> {
       else reject(new Error(`${command} ${args.join(' ')} 退出 ${code ?? 1}`));
     });
   });
-}
-
-function asarCli(): string {
-  const fromApp = createRequire(join(repoRoot, 'packages/app/package.json'));
-  const builderJson = fromApp.resolve('electron-builder/package.json');
-  const appBuilderJson = createRequire(builderJson).resolve('app-builder-lib/package.json');
-  const asarJson = createRequire(appBuilderJson).resolve('@electron/asar/package.json');
-  return join(dirname(asarJson), 'bin/asar.js');
-}
-
-function outputOf(command: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: repoRoot });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve(stdout);
-      else reject(new Error(`${command} ${args.join(' ')} 退出 ${code ?? 1}\n${stderr}`));
-    });
-  });
-}
-
-function distElectronFiles(): string[] {
-  return readdirSync(join(repoRoot, 'packages/app/dist-electron')).filter((name) => name.endsWith('.js'));
-}
-
-/** `asar list` 必须包含 dist-electron 里的每个编译结果。漏掉 plist.js 时主进程会 ERR_MODULE_NOT_FOUND。 */
-async function assertAsarHasDistElectron(): Promise<void> {
-  const listed = await outputOf(process.execPath, [asarCli(), 'list', asarPath]);
-  const packed = new Set(listed.split('\n').map((line) => line.trim()));
-  const missing = distElectronFiles().filter((name) => !packed.has(`/dist-electron/${name}`));
-  if (missing.length > 0) {
-    throw new Error(`app.asar 缺少 dist-electron 文件：${missing.join('、')}`);
-  }
 }
 
 function portOpen(port: number): Promise<boolean> {
@@ -160,10 +119,19 @@ async function smokePackagedApp(): Promise<void> {
 async function main(): Promise<void> {
   await run('pnpm', ['-r', '--if-present', 'build']);
   await bundleDaemon(repoRoot);
-  await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--linux', '--dir', '--config', 'electron-builder.yml']);
+  await run('pnpm', [
+    '--filter',
+    '@mufu/app',
+    'exec',
+    'electron-builder',
+    '--linux',
+    '--dir',
+    '--config',
+    'electron-builder.yml',
+  ]);
   const problems: string[] = [];
   try {
-    await assertAsarHasDistElectron();
+    await assertAsarHasDistElectron(repoRoot, asarPath);
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
   }
