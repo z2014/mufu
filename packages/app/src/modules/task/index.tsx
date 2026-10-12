@@ -1,15 +1,26 @@
 import { STAGE_DONE_PIN, attentionSettingsPath, type TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 
-import { addNote, DaemonError, getTask, readPins, resolveGate, taskKeys } from '@/api/tasks';
+import {
+  addNote,
+  changeWorkflow,
+  DaemonError,
+  getTask,
+  listWorkflows,
+  readPins,
+  resolveGate,
+  setStageAgent,
+  taskKeys,
+} from '@/api/tasks';
 import { agentIdentity, agentLabel } from '@/common/agent';
 import { shownAuthor } from '@/common/author';
 import { cn } from '@/common/utils';
 import { DiffDialog } from '@/common/components/diff-dialog';
 import { ArtifactPanel } from '@/modules/task/components/artifact-panel';
 import { GateCard } from '@/modules/task/components/gate-card';
+import { ChangeWorkflowButton } from '@/modules/task/components/change-workflow';
 import { MembersButton } from '@/modules/task/components/members';
 import { PinTarget, pinAnchor } from '@/modules/task/components/pin-target';
 import { PinStrip } from '@/modules/task/components/pin-strip';
@@ -49,7 +60,18 @@ export function Component() {
       await invalidate();
     },
   });
+  const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
+  const swap = useMutation({
+    mutationFn: (workflowId: string) => changeWorkflow(taskId, workflowId),
+    onSuccess: () => invalidate(),
+  });
+  const agent = useMutation({
+    mutationFn: (input: { stageId: string; agent: 'codex' | 'claude' }) =>
+      setStageAgent(taskId, input.stageId, input.agent),
+    onSuccess: () => invalidate(),
+  });
   const current = task.data;
+  const otherWorkflow = workflows.data?.find((item) => item.id !== current?.workflow.id);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
@@ -113,7 +135,12 @@ export function Component() {
                   );
                 })}
               </ol>
-              <MembersButton task={current} />
+              <MembersButton
+                task={current}
+                onAgent={(stageId, kind) => {
+                  agent.mutate({ stageId, agent: kind });
+                }}
+              />
             </header>
             <PinStrip
               pins={current.pins}
@@ -127,15 +154,29 @@ export function Component() {
               }}
             />
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-14">
-              {current.messages.map((message) => (
-                <Message
-                  key={message.id}
-                  message={message}
-                  pins={current.pins}
-                  stages={current.workflow.stages}
-                  highlighted={message.id === highlightedId}
-                />
-              ))}
+              {current.messages.map((message) => {
+                const lastLead = [...current.messages].reverse().find((item) => item.role === 'lead');
+                return (
+                  <Message
+                    key={message.id}
+                    message={message}
+                    pins={current.pins}
+                    stages={current.workflow.stages}
+                    highlighted={message.id === highlightedId}
+                    changeWorkflow={
+                      message.id === lastLead?.id ? (
+                        <ChangeWorkflowButton
+                          enabled={current.canChangeWorkflow && Boolean(otherWorkflow)}
+                          pending={swap.isPending}
+                          onChange={() => {
+                            if (otherWorkflow) swap.mutate(otherWorkflow.id);
+                          }}
+                        />
+                      ) : null
+                    }
+                  />
+                );
+              })}
             </div>
             <div className="shrink-0">
               {current.pendingGate ? (
@@ -235,11 +276,13 @@ function Message({
   pins,
   stages,
   highlighted,
+  changeWorkflow,
 }: {
   message: TaskView['messages'][number];
   pins: TaskView['pins'];
   stages: TaskView['workflow']['stages'];
   highlighted: boolean;
+  changeWorkflow?: ReactNode;
 }) {
   const pin = pins.find((item) => item.messageId === message.id);
   const caption = pin ? pinCaption(pin, stages) : null;
@@ -269,6 +312,7 @@ function Message({
         {caption ? <em className="ml-2 font-normal">{caption}</em> : null}
       </p>
       <p className="leading-7">{message.text}</p>
+      {changeWorkflow ? <div className="mt-2">{changeWorkflow}</div> : null}
     </PinTarget>
   );
 }

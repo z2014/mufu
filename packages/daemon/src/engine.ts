@@ -30,6 +30,7 @@ import {
 
 import { GateBroker, type Decision, type GateResolution } from './broker.ts';
 import { holdAwake } from './sleep.ts';
+import { chooseWorkflow } from './choose.ts';
 import { checkWorkdir, createWorkspace } from './workspace.ts';
 import type { ListedWorkflow, WorkflowCatalog } from './workflows.ts';
 
@@ -66,6 +67,8 @@ export type TaskEngine = {
   resolveGate(gateId: string, decision: Decision, comment?: string): TaskView;
   requestMerge(taskId: string): Promise<void>;
   readPins(taskId: string, pinIds: string[]): TaskView;
+  changeWorkflow(taskId: string, workflowId: string): Promise<TaskView>;
+  setStageAgent(taskId: string, stageId: string, agent: AgentKind): TaskView;
   workflows(): ListedWorkflow[];
   shutdown(): void;
 };
@@ -74,6 +77,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
   const { log, github } = options;
   const broker = new GateBroker();
   const running = new Set<string>();
+  const restartAfter = new Set<string>();
   const mergeLocks = new Set<string>();
   const live = new Map<string, AgentSession>();
   let awake: { stop(): void } | null = null;
@@ -303,6 +307,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
           text: leadIntro(
             task.workflow.title,
             task.workflow.stages.map((stage) => stage.title),
+            task.workflowReason ?? undefined,
           ),
         },
       });
@@ -315,6 +320,7 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     } finally {
       live.delete(taskId);
       running.delete(taskId);
+      if (restartAfter.delete(taskId)) void runTask(taskId);
       if (running.size === 0) {
         awake?.stop();
         awake = null;
@@ -573,9 +579,19 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
   }
 
   async function createTask(input: Created): Promise<TaskView> {
-    const workflowId = input.workflowId ?? options.workflows.defaultWorkflowId;
-    const template = options.workflows.byId.get(workflowId);
-    if (!template) throw new Error(`没有这个流程：${workflowId}`);
+    const choice = input.workflowId
+      ? { workflowId: input.workflowId, reason: '指定了这个流程' }
+      : chooseWorkflow(
+          input.prompt,
+          options.workflows.list.map((item) => ({
+            id: item.id,
+            title: item.title,
+            match: item.match,
+            default: item.default,
+          })),
+        );
+    const template = options.workflows.byId.get(choice.workflowId);
+    if (!template) throw new Error(`没有这个流程：${choice.workflowId}`);
     const workflow = {
       ...template,
       stages: template.stages.map((stage) => {
@@ -592,6 +608,11 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
       type: 'task.created',
       payload: { seq, title: input.title, prompt: input.prompt, workflow, repoPath },
     });
+    log.append({
+      taskId,
+      type: 'template.chosen',
+      payload: { workflowId: workflow.id, reason: choice.reason },
+    });
     const path = await createWorkspace(repoPath, taskId, options.home);
     log.append({ taskId, type: 'workspace.created', payload: { path } });
     setStatus(taskId, 'running');
@@ -607,6 +628,58 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     if (decision === 'reject' && (!comment || comment.trim().length === 0)) throw new Error('打回要写一句原因');
     broker.resolve(gateId, decision, comment?.trim());
     return task;
+  }
+
+  async function changeWorkflow(taskId: string, workflowId: string): Promise<TaskView> {
+    const task = one(taskId);
+    if (!task) throw new Error('没有这个任务');
+    if (!task.canChangeWorkflow) throw new Error('第一阶段已经有输出，不能换流程');
+    if (task.workflow.id === workflowId) throw new Error('已经是这个流程');
+    const template = options.workflows.byId.get(workflowId);
+    if (!template) throw new Error(`没有这个流程：${workflowId}`);
+    const reason = `换成「${template.title}」`;
+    log.append({
+      taskId,
+      type: 'template.changed',
+      payload: { workflowId, reason, workflow: template },
+    });
+    log.append({
+      taskId,
+      type: 'agent.message',
+      payload: {
+        role: 'lead',
+        author: '协调 Agent',
+        text: leadIntro(
+          template.title,
+          template.stages.map((stage) => stage.title),
+          reason,
+        ),
+      },
+    });
+    const first = template.stages[0];
+    if (first) log.append({ taskId, type: 'stage.entered', payload: { stageId: first.id } });
+    if (task.status !== 'running') setStatus(taskId, 'running');
+    const session = live.get(taskId);
+    if (session || running.has(taskId)) {
+      restartAfter.add(taskId);
+      await session?.interrupt();
+    } else {
+      void runTask(taskId);
+    }
+    const updated = one(taskId);
+    if (!updated) throw new Error('没有这个任务');
+    return updated;
+  }
+
+  function setStageAgent(taskId: string, stageId: string, agent: AgentKind): TaskView {
+    const task = one(taskId);
+    if (!task) throw new Error('没有这个任务');
+    if (agent !== 'codex' && agent !== 'claude') throw new Error('没有这个代理');
+    if (!task.workflow.stages.some((stage) => stage.id === stageId)) throw new Error('没有这个阶段');
+    log.append({ taskId, type: 'stage.agent', payload: { stageId, agent } });
+    const updated = one(taskId);
+    if (!updated) throw new Error('没有这个任务');
+    return updated;
   }
 
   function note(taskId: string, text: string): TaskView {
@@ -641,6 +714,8 @@ export function createTaskEngine(options: EngineOptions): TaskEngine {
     getTask: one,
     events: (taskId) => log.readAll().filter((event) => event.taskId === taskId),
     note,
+    changeWorkflow,
+    setStageAgent,
     resolveGate,
     requestMerge: completeByMerge,
     readPins(taskId, pinIds) {

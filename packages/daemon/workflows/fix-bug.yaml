@@ -1,6 +1,10 @@
 id: fix-bug
 title: 修 bug
-default: true
+match:
+  - bug
+  - 报错
+  - 崩
+  - 修
 done_when: pr_merged
 stages:
   - id: reproduce

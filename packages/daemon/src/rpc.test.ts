@@ -27,12 +27,17 @@ function engine(): TaskEngine {
     readPins: () => {
       throw new Error('unused');
     },
+    changeWorkflow: () => Promise.reject(new Error('unused')),
+    setStageAgent: () => {
+      throw new Error('unused');
+    },
     workflows: () => [
       {
         id: 'fix-bug',
         name: '修 bug',
         title: '修 bug',
         default: true,
+        match: ['崩'],
         doneWhen: 'pr_merged',
         stages: [{ id: 'fix', title: '修复', agent: 'codex' }],
       },

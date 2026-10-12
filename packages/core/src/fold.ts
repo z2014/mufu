@@ -100,6 +100,8 @@ function apply(map: Map<string, TaskView>, raw: DomainEvent): void {
       pins: [],
       artifacts: [],
       messages: [{ id: event.id, role: 'user', author: '你', text: str(event.payload, 'prompt') }],
+      workflowReason: null,
+      canChangeWorkflow: true,
       attempts: 0,
       runs: 0,
       workspacePath: null,
@@ -131,6 +133,31 @@ function apply(map: Map<string, TaskView>, raw: DomainEvent): void {
     case 'stage.entered':
       task.stageId = str(payload, 'stageId');
       break;
+    case 'template.chosen':
+      task.workflowReason = str(payload, 'reason');
+      break;
+    case 'template.changed': {
+      const workflow = workflowOf(payload);
+      task.workflow = workflow;
+      task.workflowReason = str(payload, 'reason');
+      task.stageId = workflow.stages[0]?.id ?? '';
+      task.canChangeWorkflow = true;
+      task.pendingGate = null;
+      task.sessions = {};
+      task.sessionId = null;
+      task.attention = null;
+      break;
+    }
+    case 'stage.agent': {
+      const stageId = str(payload, 'stageId');
+      const agent = str(payload, 'agent');
+      if (agent !== 'codex' && agent !== 'claude') break;
+      task.workflow = {
+        ...task.workflow,
+        stages: task.workflow.stages.map((stage) => (stage.id === stageId ? { ...stage, agent } : stage)),
+      };
+      break;
+    }
     case 'workspace.created':
       task.workspacePath = str(payload, 'path');
       break;
@@ -155,12 +182,14 @@ function apply(map: Map<string, TaskView>, raw: DomainEvent): void {
       const raw = str(payload, 'author');
       const kind = raw === 'codex' || raw === 'claude' ? raw : null;
       if (kind) task.agentKind = kind;
+      const role = payload.role === 'lead' || payload.role === 'system' || payload.role === 'user' ? payload.role : 'agent';
       task.messages.push({
         id: event.id,
-        role: payload.role === 'lead' || payload.role === 'system' || payload.role === 'user' ? payload.role : 'agent',
+        role,
         author: raw,
         text: str(payload, 'text'),
       });
+      if (role === 'agent') task.canChangeWorkflow = false;
       break;
     }
     case 'gate.opened':
@@ -172,6 +201,7 @@ function apply(map: Map<string, TaskView>, raw: DomainEvent): void {
         summary: str(payload, 'summary'),
         detail: typeof payload.detail === 'string' ? payload.detail : '',
       };
+      task.canChangeWorkflow = false;
       break;
     case 'gate.resolved':
       if (task.pendingGate?.id === payload.gateId) task.pendingGate = null;
@@ -207,6 +237,7 @@ function apply(map: Map<string, TaskView>, raw: DomainEvent): void {
         detail,
         ...(kind ? { kind } : {}),
       });
+      task.canChangeWorkflow = false;
       break;
     }
     case 'environment.failed':

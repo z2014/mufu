@@ -166,8 +166,8 @@ describe('merge completes the task', () => {
         })),
       ).toEqual([
         {
-          message: stageDoneText('验收', '用「只验收」流程处理：验收。'),
-          reason: stageDoneText('验收', '用「只验收」流程处理：验收。'),
+          message: stageDoneText('验收', '没有对上关键词。用「只验收」流程处理：验收。'),
+          reason: stageDoneText('验收', '没有对上关键词。用「只验收」流程处理：验收。'),
           author: LEAD_PIN_AUTHOR,
           stageId: 'accept',
         },
@@ -460,6 +460,153 @@ describe('merge completes the task', () => {
       expect(engine.events(created.id).find((event) => event.type === 'environment.failed')?.payload.raw).toBe(raw);
     } finally {
       close();
+    }
+  });
+});
+
+describe('换流程', () => {
+  it('关键词选中修 bug，产出前打断并换到新模板的第一步，产出后锁住', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'mufu-switch-'));
+    const repo = await initRepo(home);
+    const dir = join(home, 'workflows');
+    mkdirSync(dir);
+    writeFileSync(
+      join(dir, 'fix-bug.yaml'),
+      'id: fix-bug\ntitle: 修 bug\nmatch: [崩]\ndone_when: pr_merged\nstages:\n  - id: reproduce\n    title: 复现\n    agent: codex\n',
+    );
+    writeFileSync(
+      join(dir, 'new-feature.yaml'),
+      'id: new-feature\ntitle: 新功能\ndefault: true\ndone_when: pr_merged\nstages:\n  - id: spec\n    title: 方案\n    agent: codex\n',
+    );
+    let release = (): void => undefined;
+    let starts = 0;
+    const log = new SqliteEventLog(join(home, 'events.sqlite'));
+    const engine = createTaskEngine({
+      home,
+      log,
+      workflows: loadWorkflows(dir),
+      adapters: {
+        codex: {
+          kind: 'codex',
+          startSession() {
+            starts += 1;
+            if (starts > 1) {
+              return Promise.resolve({
+                sessionId: 'second',
+                events: (async function* events() {
+                  yield { type: 'completed' as const, ok: true };
+                })(),
+                decide() {
+                  return Promise.resolve();
+                },
+                interrupt() {
+                  return Promise.resolve();
+                },
+              });
+            }
+            return Promise.resolve({
+              sessionId: 'first',
+              events: (async function* events() {
+                await new Promise<void>((resolve) => {
+                  release = resolve;
+                });
+                yield { type: 'interrupted' as const };
+              })(),
+              decide() {
+                return Promise.resolve();
+              },
+              interrupt() {
+                release();
+                return Promise.resolve();
+              },
+            });
+          },
+        },
+        claude: adapter(),
+      },
+      fixture: null,
+      github: github('ok'),
+      agent: 'codex',
+    });
+    try {
+      const created = await engine.createTask({ title: '崩了', prompt: '列表崩了', repoPath: repo });
+      expect(created.workflow.id).toBe('fix-bug');
+      expect(created.workflowReason).toBe('需求里有「崩」');
+      expect(engine.events(created.id).some((event) => event.type === 'template.chosen')).toBe(true);
+      const ready = await until(
+        engine,
+        created.id,
+        (task) => task.canChangeWorkflow && task.messages.some((message) => message.role === 'lead'),
+      );
+      expect(ready.messages.find((message) => message.role === 'lead')?.text).toContain('需求里有「崩」');
+      expect(ready.messages.find((message) => message.role === 'lead')?.text).toContain('修 bug');
+      expect(engine.setStageAgent(created.id, 'reproduce', 'claude').workflow.stages[0]?.agent).toBe('claude');
+      await engine.changeWorkflow(created.id, 'new-feature');
+      const switched = await until(
+        engine,
+        created.id,
+        (task) => task.workflow.id === 'new-feature' && task.status === 'done',
+      );
+      expect(switched.stageId).toBe('spec');
+      expect(switched.workflowReason).toBe('换成「新功能」');
+      expect(switched.messages.filter((message) => message.role === 'lead').at(-1)?.text).toContain('换成「新功能」');
+      expect(engine.events(created.id).some((event) => event.type === 'template.changed')).toBe(true);
+      expect(starts).toBe(2);
+
+      const home2 = mkdtempSync(join(tmpdir(), 'mufu-switch-lock-'));
+      const repo2 = await initRepo(home2);
+      const log2 = new SqliteEventLog(join(home2, 'events.sqlite'));
+      let releaseLock = (): void => undefined;
+      const lockedEngine = createTaskEngine({
+        home: home2,
+        log: log2,
+        workflows: loadWorkflows(dir),
+        adapters: {
+          codex: {
+            kind: 'codex',
+            startSession() {
+              return Promise.resolve({
+                sessionId: 'talking',
+                events: (async function* events() {
+                  yield { type: 'message' as const, author: 'codex', text: '先看了一眼' };
+                  await new Promise<void>((resolve) => {
+                    releaseLock = resolve;
+                  });
+                  yield { type: 'interrupted' as const };
+                })(),
+                decide() {
+                  return Promise.resolve();
+                },
+                interrupt() {
+                  releaseLock();
+                  return Promise.resolve();
+                },
+              });
+            },
+          },
+          claude: adapter(),
+        },
+        fixture: null,
+        github: github('ok'),
+        agent: 'codex',
+      });
+      try {
+        const talking = await lockedEngine.createTask({ title: '还是崩', prompt: '又崩了', repoPath: repo2 });
+        const blocked = await until(lockedEngine, talking.id, (task) => task.canChangeWorkflow === false);
+        expect(blocked.messages.some((message) => message.text === '先看了一眼')).toBe(true);
+        await expect(lockedEngine.changeWorkflow(talking.id, 'new-feature')).rejects.toThrow('不能换流程');
+        expect(lockedEngine.getTask(talking.id)?.workflow.id).toBe('fix-bug');
+        releaseLock();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } finally {
+        lockedEngine.shutdown();
+        log2.close();
+        rmSync(home2, { recursive: true, force: true });
+      }
+    } finally {
+      engine.shutdown();
+      log.close();
+      rmSync(home, { recursive: true, force: true });
     }
   });
 });

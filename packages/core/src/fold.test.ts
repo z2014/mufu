@@ -235,6 +235,59 @@ describe('fold', () => {
     });
   });
 
+  it('选用和换流程可以重放，第一阶段有产出之后不能再换', () => {
+    const feature: Workflow = {
+      id: 'new-feature',
+      title: '新功能',
+      doneWhen: 'pr_merged',
+      stages: [{ id: 'spec', title: '方案', agent: 'claude' }],
+    };
+    const chosen = [
+      ev({ type: 'task.created', payload: { seq: 1, title: 'x', prompt: '崩了', workflow } }),
+      ev({ type: 'template.chosen', payload: { workflowId: 'fix-bug', reason: '需求里有「崩」' } }),
+      ev({ type: 'agent.message', payload: { role: 'lead', author: '协调 Agent', text: '开场' } }),
+    ];
+    const open = foldTasks(chosen)[0];
+    expect(open?.workflowReason).toBe('需求里有「崩」');
+    expect(open?.canChangeWorkflow).toBe(true);
+
+    const locked = foldTasks([
+      ...chosen,
+      ev({ type: 'agent.message', id: 'said', payload: { role: 'agent', author: 'claude', text: '已复现' } }),
+    ])[0];
+    expect(locked?.canChangeWorkflow).toBe(false);
+
+    const switched = foldTasks([
+      ...chosen,
+      ev({
+        type: 'template.changed',
+        payload: { workflowId: 'new-feature', reason: '换成「新功能」', workflow: feature },
+      }),
+      ev({ type: 'stage.entered', payload: { stageId: 'spec' } }),
+    ])[0];
+    expect(switched?.workflow.id).toBe('new-feature');
+    expect(switched?.stageId).toBe('spec');
+    expect(switched?.workflowReason).toBe('换成「新功能」');
+    expect(switched?.canChangeWorkflow).toBe(true);
+    expect(switched?.sessionId).toBeNull();
+
+    const lockedAgain = foldTasks([
+      ...chosen,
+      ev({
+        type: 'template.changed',
+        payload: { workflowId: 'new-feature', reason: '换成「新功能」', workflow: feature },
+      }),
+      ev({ type: 'artifact.added', payload: { artifactId: 'a', title: '方案', detail: '一页' } }),
+    ])[0];
+    expect(lockedAgain?.canChangeWorkflow).toBe(false);
+
+    const edited = foldTasks([
+      ...chosen,
+      ev({ type: 'stage.agent', payload: { stageId: 'reproduce', agent: 'codex' } }),
+    ])[0];
+    expect(edited?.workflow.stages.find((stage) => stage.id === 'reproduce')?.agent).toBe('codex');
+  });
+
   it('缺省事件版本是 1，别的版本交给 upgradeEvent 拒绝', () => {
     const missing = ev({ type: 'task.status', payload: { status: 'running' } });
     expect(eventSchemaVersion(missing)).toBe(EVENT_SCHEMA_VERSION);

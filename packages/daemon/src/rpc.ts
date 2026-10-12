@@ -55,6 +55,12 @@ export function createRpc(deps: {
         return engine.events(String(params.taskId));
       case 'task.note':
         return engine.note(String(params.taskId), String(params.text ?? ''));
+      case 'template.change':
+        return engine.changeWorkflow(String(params.taskId), String(params.workflowId ?? ''));
+      case 'stage.setAgent': {
+        if (params.agent !== 'codex' && params.agent !== 'claude') throw new Error('没有这个代理');
+        return engine.setStageAgent(String(params.taskId), String(params.stageId), params.agent);
+      }
       case 'gate.resolve':
         return engine.resolveGate(
           String(params.gateId),

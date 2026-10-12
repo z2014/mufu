@@ -14,6 +14,8 @@ export const workflowSchema = z.object({
   title: z.string().min(1),
   /** 多个文件同时为 true 时，加载直接失败。都不写时用目录里排第一的文件。 */
   default: z.boolean().optional(),
+  /** 需求里出现其中任一关键词就选用这个流程。空着则只在 `default` 时兜底。 */
+  match: z.array(z.string().min(1)).optional(),
   done_when: z.enum(['pr_merged']),
   stages: z
     .array(

@@ -10,6 +10,7 @@ export type ListedWorkflow = {
   name: string;
   title: string;
   default: boolean;
+  match: string[];
   doneWhen: Workflow['doneWhen'];
   stages: Workflow['stages'];
 };
@@ -58,6 +59,7 @@ export function loadWorkflows(dir: string): WorkflowCatalog {
       name: workflow.title,
       title: workflow.title,
       default: workflow.id === defaultWorkflowId,
+      match: file.match ?? [],
       doneWhen: workflow.doneWhen,
       stages: workflow.stages,
     });

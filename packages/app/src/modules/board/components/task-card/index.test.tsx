@@ -39,6 +39,8 @@ function task(stageAgent: 'codex' | 'claude'): TaskView {
     diff: null,
     ci: null,
     runStartedAt: null,
+    workflowReason: null,
+    canChangeWorkflow: false,
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
 }

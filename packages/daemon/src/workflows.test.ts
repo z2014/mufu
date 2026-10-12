@@ -12,13 +12,14 @@ describe('loadWorkflows', () => {
   it('scans every yaml and uses the flagged default', () => {
     const catalog = loadWorkflows(workflowsDir);
     expect([...catalog.byId.keys()].sort()).toEqual(['fix-bug', 'new-feature']);
-    expect(catalog.defaultWorkflowId).toBe('fix-bug');
-    expect(catalog.list.find((item) => item.id === 'fix-bug')).toMatchObject({
-      name: '修 bug',
+    expect(catalog.defaultWorkflowId).toBe('new-feature');
+    expect(catalog.list.find((item) => item.id === 'new-feature')).toMatchObject({
+      name: '新功能',
       default: true,
       doneWhen: 'pr_merged',
     });
-    expect(catalog.list.find((item) => item.id === 'new-feature')?.default).toBe(false);
+    expect(catalog.list.find((item) => item.id === 'fix-bug')?.default).toBe(false);
+    expect(catalog.list.find((item) => item.id === 'fix-bug')?.match).toEqual(['bug', '报错', '崩', '修']);
     expect(catalog.list.find((item) => item.id === 'fix-bug')?.stages.find((stage) => stage.id === 'fix')?.agent).toBe(
       'codex',
     );

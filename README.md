@@ -69,7 +69,7 @@ pnpm mufu -- gate reject <gateId> --comment "原因"
 pnpm mufu -- doctor
 ```
 
-不设 `MUFU_AGENT` 时，阶段用流程模板里的代理（Codex / Claude）。`MUFU_AGENT=fake` 时整条任务改读 `fixtures/handwritten/fix-bug.fake.jsonl`。创建时可以用重复的 `--agent 阶段=codex` 盖掉模板，例如 `--agent reproduce=codex --agent accept=codex`。没有订阅登录的那一边会在把任务送出去之前拒绝，并且只挡住用到它的任务。
+新建任务只填要做的事和工作目录。守护进程按模板里的 `match` 关键词选流程，没有对上就用标了 `default: true` 的新功能模板。第一阶段还没有产出时，任务页可以「换一个」。不设 `MUFU_AGENT` 时，阶段用流程模板里的代理（Codex / Claude），在「成员与能力」里改的是这个任务。`MUFU_AGENT=fake` 时整条任务改读 `fixtures/handwritten/fix-bug.fake.jsonl`。创建时可以用重复的 `--agent 阶段=codex` 盖掉模板，例如 `--agent reproduce=codex --agent accept=codex`。没有订阅登录的那一边会在把任务送出去之前拒绝，并且只挡住用到它的任务。
 
 ## 看板
 

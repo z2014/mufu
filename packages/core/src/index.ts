@@ -24,8 +24,11 @@ export type {
   TaskStatus,
   TaskView,
   Workflow,
+  WorkflowChoice,
   WorkflowStage,
+  WorkflowTemplate,
 } from './model.ts';
+export type { ChooseWorkflow } from './model.ts';
 export { eventSchemaVersion, foldTask, foldTasks, upgradeEvent } from './fold.ts';
 export {
   LEAD_PIN_AUTHOR,

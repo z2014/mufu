@@ -1,5 +1,6 @@
 id: new-feature
 title: 新功能
+default: true
 done_when: pr_merged
 stages:
   - id: spec

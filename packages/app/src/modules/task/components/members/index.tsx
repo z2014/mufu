@@ -4,13 +4,15 @@ import { useState } from 'react';
 import { agentIdentity } from '@/common/agent';
 import { Button } from '@/common/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/common/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/common/components/ui/select';
 
-function agentName(agent: string | undefined): string {
-  if (agent === 'codex' || agent === 'claude') return agentIdentity(agent).displayName;
-  return '未定';
-}
-
-export function MembersButton({ task }: { task: TaskView }) {
+export function MembersButton({
+  task,
+  onAgent,
+}: {
+  task: TaskView;
+  onAgent: (stageId: string, agent: 'codex' | 'claude') => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -21,19 +23,24 @@ export function MembersButton({ task }: { task: TaskView }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>成员与能力</DialogTitle>
-            <DialogDescription>每个阶段用流程里选定的 Codex 或 Claude。这里只看分配，不改模板。</DialogDescription>
+            <DialogDescription>每个阶段一开始用流程模板里的代理。在这里改的是这个任务。</DialogDescription>
           </DialogHeader>
           <ul>
             {task.workflow.stages.map((stage) => (
-              <li key={stage.id} className="flex items-baseline gap-3 border-b py-2 text-sm">
+              <li key={stage.id} className="flex items-center justify-between gap-3 border-b py-2 text-sm">
                 <span className="font-medium">{stage.title}</span>
-                <span className="text-muted-foreground">{agentName(stage.agent)}</span>
-                {stage.gate === 'final' ? (
-                  <span className="text-muted-foreground ml-auto text-xs">最终门禁</span>
-                ) : null}
-                {stage.gate === 'stage' ? (
-                  <span className="text-muted-foreground ml-auto text-xs">阶段门禁</span>
-                ) : null}
+                <Select
+                  value={stage.agent === 'claude' ? 'claude' : 'codex'}
+                  onValueChange={(value) => onAgent(stage.id, value === 'claude' ? 'claude' : 'codex')}
+                >
+                  <SelectTrigger className="w-32" aria-label={`${stage.title}用谁`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="codex">{agentIdentity('codex').displayName}</SelectItem>
+                    <SelectItem value="claude">{agentIdentity('claude').displayName}</SelectItem>
+                  </SelectContent>
+                </Select>
               </li>
             ))}
           </ul>

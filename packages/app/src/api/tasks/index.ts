@@ -91,6 +91,8 @@ const taskViewSchema = z.object({
   attempts: z.number(),
   runs: z.number(),
   workspacePath: z.string().nullable(),
+  workflowReason: z.string().nullable(),
+  canChangeWorkflow: z.boolean(),
   merging: z.boolean(),
   mergePr: z.number().nullable(),
   diff: z
@@ -164,11 +166,27 @@ export async function checkWorkdir(repoPath: string): Promise<void> {
 export async function createTask(input: {
   title: string;
   prompt: string;
-  workflowId: string;
   repoPath?: string;
+  workflowId?: string;
   agents?: Record<string, 'codex' | 'claude'>;
 }): Promise<TaskView> {
   return parse(taskViewSchema, await rpc('task.create', input), '新任务');
+}
+
+export async function changeWorkflow(taskId: string, workflowId: string): Promise<TaskView | null> {
+  const result = await rpc('template.change', { taskId, workflowId });
+  if (result === null || result === undefined) return null;
+  return parse(taskViewSchema, result, '任务');
+}
+
+export async function setStageAgent(
+  taskId: string,
+  stageId: string,
+  agent: 'codex' | 'claude',
+): Promise<TaskView | null> {
+  const result = await rpc('stage.setAgent', { taskId, stageId, agent });
+  if (result === null || result === undefined) return null;
+  return parse(taskViewSchema, result, '任务');
 }
 
 export async function listWorkflows(): Promise<WorkflowChoice[]> {

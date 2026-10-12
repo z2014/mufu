@@ -117,8 +117,28 @@ export type TaskView = {
   } | null;
   /** 最近一次运行开始的时间，进行中卡片用来显示已经跑了多久。 */
   runStartedAt: string | null;
+  /** 这次选用流程的原因。还没写下 `template.chosen` 时是 null。 */
+  workflowReason: string | null;
+  /** 第一阶段还没有产出时可以换流程。产出或换过之后由折叠重算。 */
+  canChangeWorkflow: boolean;
   updatedAt: string;
 };
+
+/** 交给 `chooseWorkflow` 的模板。关键词和默认标记不进任务快照。 */
+export type WorkflowTemplate = {
+  id: string;
+  title: string;
+  match: readonly string[];
+  default?: boolean;
+};
+
+export type WorkflowChoice = {
+  workflowId: string;
+  reason: string;
+};
+
+/** 阶段 1 的实现在守护进程里按关键词匹配。界面不选流程。 */
+export type ChooseWorkflow = (requirement: string, templates: readonly WorkflowTemplate[]) => WorkflowChoice;
 
 export type DomainEvent = {
   /** 缺省是 1。见 EVENT_SCHEMA_VERSION。 */

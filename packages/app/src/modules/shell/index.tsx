@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { Link, Outlet, useMatch, useNavigate } from 'react-router';
 
 import { useDoctor } from '@/api/connections';
-import { checkWorkdir, createTask, listWorkflows, taskKeys, useTasks } from '@/api/tasks';
+import { checkWorkdir, createTask, taskKeys, useTasks } from '@/api/tasks';
 import { AppShell } from '@/common/components/app-shell';
 import { NewTaskDialog, type NewTaskInput } from '@/common/components/new-task-dialog';
 import { TaskNav } from '@/common/components/task-nav';
@@ -18,7 +18,6 @@ export function Component() {
   const settingsMatch = useMatch('/settings');
   const tasks = useTasks();
   const doctor = useDoctor();
-  const workflows = useQuery({ queryKey: taskKeys.workflows, queryFn: listWorkflows });
   const repoPath = usePreferences((state) => state.repoPath);
   const setRepoPath = usePreferences((state) => state.setRepoPath);
   const [open, setOpen] = useState(false);
@@ -35,9 +34,7 @@ export function Component() {
       createTask({
         title: input.title,
         prompt: input.prompt,
-        workflowId: input.workflowId,
         repoPath: input.repoPath.trim() || undefined,
-        agents: input.agents,
       }),
     onSuccess: async (created, input) => {
       setRepoPath(input.repoPath);
@@ -70,7 +67,6 @@ export function Component() {
         open={open}
         onOpenChange={setOpen}
         defaultRepo={repoPath}
-        workflows={workflows.data ?? []}
         pending={create.isPending}
         errorMessage={create.error instanceof Error ? create.error.message : null}
         validateRepo={validateRepo}

@@ -149,7 +149,8 @@ export function stageDoneText(stageTitle: string, messageText: string): string {
   return `${STAGE_DONE_PIN}：${stageTitle} — ${opening}`;
 }
 
-export function leadIntro(workflowTitle: string, stageTitles: string[]): string {
+export function leadIntro(workflowTitle: string, stageTitles: string[], reason?: string): string {
   const steps = stageTitles.join('、');
-  return `用「${workflowTitle}」流程处理：${steps}。`;
+  const because = reason && reason.length > 0 ? `${reason}。` : '';
+  return `${because}用「${workflowTitle}」流程处理：${steps}。`;
 }
