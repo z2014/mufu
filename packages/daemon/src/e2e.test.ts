@@ -169,7 +169,7 @@ describe('fix bug tracer', () => {
     const repo = await gitRepo();
     try {
       const created = await cliRun(
-        ['task', 'create', '--title', '再看一眼', '--prompt', '先别过', '--repo', repo],
+        ['task', 'create', '--title', '再看一眼', '--prompt', '先别过', '--workflow', 'fix-bug', '--repo', repo],
         home,
       );
       expect(created.code, created.stderr).toBe(0);
