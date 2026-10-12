@@ -4,9 +4,7 @@ directories:
   output: ../../release
 files:
   - dist/**/*
-  - dist-electron/main.js
-  - dist-electron/preload.js
-  - dist-electron/launch-agent.js
+  - dist-electron/**/*.js
   - package.json
 extraResources:
   - from: resources/daemon.cjs
@@ -16,7 +14,12 @@ extraResources:
   - from: resources/node_modules
     to: node_modules
 mac:
+  # 不用开发者证书。hardened runtime 是默认，和 ad-hoc（codesign --sign -）冲突：
+  # 它会按 Team ID 拒绝 Electron 自带的 framework。公证同样要正式证书，这里关掉。
   identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
   category: public.app-category.developer-tools
   target:
     - target: dir

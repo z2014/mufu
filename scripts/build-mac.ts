@@ -13,9 +13,9 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 function macBuildUnavailableMessage(platform: NodeJS.Platform): string | null {
   if (platform === 'darwin') return null;
   return [
-    `pnpm build:mac 只能在 macOS 上打出未签名的 mufu.app。当前是 ${platform}。`,
+    `pnpm build:mac 只能在 macOS 上打出 mufu.app。当前是 ${platform}。`,
     '在 Mac 上：pnpm install && pnpm build:mac',
-    '本机打出的 mufu.app 没有隔离属性，双击即可。下载的副本第一次要右键打开，或 xattr -dr com.apple.quarantine mufu.app',
+    `当前是 ${platform}，没有 codesign，跳过 ad-hoc 重签。打进守护进程之后要在 macOS 上重签，否则系统会杀掉应用。`,
   ].join('\n');
 }
 
@@ -39,7 +39,20 @@ async function main(): Promise<void> {
   await run('pnpm', ['--filter', '@mufu/app', 'build']);
   await bundleDaemon(repoRoot);
   await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--mac', '--config', 'electron-builder.yml']);
-  process.stdout.write('打好了：release/mac-universal/mufu.app（未签名）。\n');
+  await adHocSign(join(repoRoot, 'release/mac-universal/mufu.app'));
+  process.stdout.write('打好了：release/mac-universal/mufu.app（ad-hoc 签名）。\n');
+}
+
+/** 资源文件写进 .app 之后 Electron 自带的签名会失效。ad-hoc 重签，校验失败则构建失败。 */
+async function adHocSign(appPath: string): Promise<void> {
+  if (process.platform !== 'darwin') {
+    process.stderr.write(
+      `当前是 ${process.platform}，没有 codesign，跳过 ad-hoc 重签。打进守护进程之后要在 macOS 上重签，否则系统会杀掉应用。\n`,
+    );
+    return;
+  }
+  await run('codesign', ['--force', '--deep', '--sign', '-', appPath]);
+  await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath]);
 }
 
 main().catch((error: unknown) => {

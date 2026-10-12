@@ -41,7 +41,7 @@ pnpm test
 pnpm build:check
 ```
 
-`pnpm build:check` 在 Linux 上编译看板和 Electron 主进程，并用 esbuild 把守护进程打成 CommonJS（和 `pnpm build:mac` 里那一步相同）。它不跑 electron-builder，也打不出 `mufu.app`。顶层 `await` 写进这个 CommonJS 包会在这里失败。
+`pnpm build:check` 在 Linux 上编译看板和 Electron 主进程，把守护进程打成 CommonJS，再打一个 Linux 目录包。它核对 `app.asar` 里有 `dist-electron` 的每个文件，并在 xvfb 里启动：主进程不能有未捕获异常，守护进程要听 `127.0.0.1:43124`。它打不出 `mufu.app`。顶层 `await` 写进这个 CommonJS 包会在这里失败。
 
 `pnpm install` 会编译 electron 和 esbuild。桌面壳若提示找不到 electron，再执行 `pnpm rebuild electron esbuild`。
 
@@ -113,12 +113,26 @@ pnpm install
 pnpm build:mac
 ```
 
-产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里，没有签名。Linux 上这条命令会直接说明打不了包，不会去跑 electron-builder。要在 Linux 上确认能打成包的那几步（看板、Electron 主进程、守护进程 CommonJS），用 `pnpm build:check`。
-
-在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性，第一次要在访达里右键 `mufu.app`，选「打开」，或者在包所在目录执行：
+产物是 `release/mac-universal/mufu.app`，arm64 和 x64 打在一个包里。electron-builder 不使用开发者证书（`identity: null`，并关掉 hardened runtime 和公证，避免和 ad-hoc 签名冲突）。守护进程和 Claude SDK 写进包里之后，Electron 原来的签名会失效，macOS 会直接杀掉应用。所以打包结束后会执行：
 
 ```bash
+codesign --force --deep --sign - release/mac-universal/mufu.app
+codesign --verify --deep --strict --verbose=2 release/mac-universal/mufu.app
+```
+
+校验失败则 `pnpm build:mac` 失败。Linux 上这条命令会说明打不了包，并跳过 codesign。Linux 上能做的打包和启动检查是 `pnpm build:check`。
+
+在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性。打不开时先清掉扩展属性，再在访达里右键 `mufu.app`，选「打开」：
+
+```bash
+xattr -cr release/mac-universal/mufu.app
 xattr -dr com.apple.quarantine mufu.app
+```
+
+要看主进程报什么错，不要双击，在终端里直接跑包内的可执行文件：
+
+```bash
+release/mac-universal/mufu.app/Contents/MacOS/mufu
 ```
 
 打开之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。

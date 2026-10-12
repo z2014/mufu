@@ -1,8 +1,11 @@
+import { spawn, type ChildProcess } from 'node:child_process';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { packagedDaemonLaunch, refreshLaunchAgent, shouldInstallLaunchAgent } from './launch-agent.js';
+
+let packagedDaemon: ChildProcess | null = null;
 
 const rendererUrl = process.env.MUFU_RENDERER_URL;
 
@@ -34,6 +37,15 @@ function createWindow(): void {
   void window.loadFile(join(import.meta.dirname, '../dist/index.html'));
 }
 
+/** macOS 用 LaunchAgent。其它系统没有 launchctl，打包后的壳自己拉起同一个守护进程。 */
+function startBundledDaemon(): void {
+  const launch = packagedDaemonLaunch(process.execPath, process.resourcesPath);
+  packagedDaemon = spawn(launch.program, launch.args, {
+    env: { ...process.env, ...launch.env },
+    stdio: 'inherit',
+  });
+}
+
 void app.whenReady().then(async () => {
   if (shouldInstallLaunchAgent(app.isPackaged, process.platform)) {
     const launch = packagedDaemonLaunch(process.execPath, process.resourcesPath);
@@ -44,11 +56,19 @@ void app.whenReady().then(async () => {
       args: launch.args,
       env: launch.env,
     });
+  } else if (app.isPackaged) {
+    startBundledDaemon();
   }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  if (packagedDaemon?.exitCode === null && !packagedDaemon.killed) {
+    packagedDaemon.kill('SIGTERM');
+  }
 });
 
 app.on('window-all-closed', () => {
