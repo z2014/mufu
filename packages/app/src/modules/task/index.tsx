@@ -1,7 +1,7 @@
-import { STAGE_DONE_PIN, type TaskView } from '@mufu/core/view';
+import { STAGE_DONE_PIN, attentionSettingsPath, type TaskView } from '@mufu/core/view';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 
 import { addNote, DaemonError, getTask, readPins, resolveGate, taskKeys } from '@/api/tasks';
 import { agentIdentity, agentLabel } from '@/common/agent';
@@ -82,6 +82,11 @@ export function Component() {
                 >
                   !
                 </span>
+              ) : null}
+              {current.attention && attentionSettingsPath(current.attention.source) ? (
+                <Link to="/settings" className="text-xs">
+                  {current.attention.message}
+                </Link>
               ) : null}
               <ol className="text-muted-foreground ml-auto hidden items-center gap-2 text-xs md:flex">
                 {current.workflow.stages.map((stage, index) => {

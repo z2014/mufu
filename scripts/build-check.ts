@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { DAEMON_WS_PORT } from '@mufu/schema';
 
 import { bundleDaemon } from './bundle-daemon.ts';
+import { assertPackageOmitsPlatformSdk } from './platform-sdk.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const unpackedDir = join(repoRoot, 'release/linux-unpacked');
@@ -160,10 +161,24 @@ async function smokePackagedApp(): Promise<void> {
 async function main(): Promise<void> {
   await run('pnpm', ['-r', '--if-present', 'build']);
   await bundleDaemon(repoRoot);
-  await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--linux', '--dir', '--config', 'electron-builder.yml']);
+  await run('pnpm', [
+    '--filter',
+    '@mufu/app',
+    'exec',
+    'electron-builder',
+    '--linux',
+    '--dir',
+    '--config',
+    'electron-builder.yml',
+  ]);
   const problems: string[] = [];
   try {
     await assertAsarHasDistElectron();
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  try {
+    await assertPackageOmitsPlatformSdk(repoRoot, asarPath, unpackedDir);
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
   }

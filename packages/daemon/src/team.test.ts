@@ -197,6 +197,9 @@ describe('codex and claude together', () => {
       })) as TaskView;
       const stuck = await waitFor(home, blocked.id, (task) => task.status === 'needs_you' && task.attention !== null);
       expect(stuck.attention?.tool).toBe('claude');
+      expect(stuck.attention?.source).toBe('not_subscription');
+      expect(stuck.attention?.message).toBe('Claude 不是订阅登录，去设置页检测');
+      expect(stuck.attention?.message).not.toContain('test');
       expect(stuck.attempts).toBe(0);
       const moving = (await rpc(home, 'task.create', {
         title: '只走 Codex',
@@ -216,7 +219,7 @@ describe('codex and claude together', () => {
       ]);
       const still = (await rpc(home, 'task.get', { taskId: blocked.id })) as TaskView;
       expect(still.status).toBe('needs_you');
-      expect(still.attention?.message).toContain('claude');
+      expect(still.attention?.message).toBe('Claude 不是订阅登录，去设置页检测');
     } finally {
       if (previous === undefined) delete process.env.MUFU_AGENT;
       else process.env.MUFU_AGENT = previous;

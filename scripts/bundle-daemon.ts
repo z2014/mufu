@@ -1,6 +1,8 @@
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+
+import { platformSdkHits, removePlatformSdkPackages } from './platform-sdk.ts';
 
 /** 和 `pnpm build:mac` 同一条：把守护进程打成 CommonJS，给 Electron 当 Node 跑。 */
 export async function bundleDaemon(repoRoot: string): Promise<void> {
@@ -29,5 +31,9 @@ export async function bundleDaemon(repoRoot: string): Promise<void> {
   const sdkDest = join(resources, 'node_modules/@anthropic-ai/claude-agent-sdk');
   rmSync(join(resources, 'node_modules'), { recursive: true, force: true });
   mkdirSync(dirname(sdkDest), { recursive: true });
-  cpSync(dirname(sdkEntry), sdkDest, { recursive: true });
+  cpSync(dirname(sdkEntry), sdkDest, {
+    recursive: true,
+    filter: (source) => platformSdkHits([basename(source)]).length === 0,
+  });
+  removePlatformSdkPackages(join(resources, 'node_modules'));
 }

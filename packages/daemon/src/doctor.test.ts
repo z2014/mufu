@@ -1,7 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+import { clearResolvedCli } from '@mufu/adapters';
 
 import { doctor } from './doctor.ts';
 
@@ -102,5 +104,39 @@ describe('doctor', () => {
     });
     expect(codex?.items.find((item) => item.name === 'subscription')?.status).toBe('skipped');
     expect(codex?.items.find((item) => item.name === 'subscription')?.fix).toBeNull();
+  });
+
+  it('默认用登录 shell 解析 codex、claude、gh', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mufu-doctor-path-'));
+    const shell = join(dir, 'shell');
+    writeFileSync(
+      shell,
+      `#!/bin/sh
+name=\${2##* }
+printf '%s\\n' "/opt/bin/$name"
+`,
+    );
+    chmodSync(shell, 0o755);
+    try {
+      const report = await doctor({
+        userHome: dir,
+        env: { SHELL: shell, HOME: dir, PATH: '/empty' },
+        ghAuth: async () => true,
+        probe: {
+          codex: async (bin) => {
+            expect(bin).toBe('/opt/bin/codex');
+            return { loggedIn: true, subscription: true, source: 'account.type=chatgpt' };
+          },
+          claude: async (bin) => {
+            expect(bin).toBe('/opt/bin/claude');
+            return { loggedIn: true, subscription: true, source: 'apiKeySource=none' };
+          },
+        },
+      });
+      expect(report.tools.find((tool) => tool.name === 'gh')?.path).toBe('/opt/bin/gh');
+    } finally {
+      clearResolvedCli();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

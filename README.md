@@ -120,7 +120,7 @@ codesign --force --deep --sign - release/mac-universal/mufu.app
 codesign --verify --deep --strict --verbose=2 release/mac-universal/mufu.app
 ```
 
-校验失败则 `pnpm build:mac` 失败。Linux 上这条命令会说明打不了包，并跳过 codesign。Linux 上能做的打包和启动检查是 `pnpm build:check`。
+校验失败则 `pnpm build:mac` 失败。守护进程用登录 shell 的 PATH 找本机的 `claude`、`codex`、`git`、`gh`，并把本机 `claude` 交给 Claude SDK，不使用 SDK 自带的平台二进制。`pnpm build:check` 和 `pnpm build:mac` 会在打包后失败，如果安装包里出现这些平台二进制。Linux 上 `pnpm build:mac` 会说明打不了包，并跳过 codesign。Linux 上能做的打包和启动检查是 `pnpm build:check`。
 
 在本机打出来的包没有隔离属性，直接双击就能打开。从别处下载的副本带隔离属性。打不开时先清掉扩展属性，再在访达里右键 `mufu.app`，选「打开」：
 

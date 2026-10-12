@@ -1,4 +1,10 @@
-import { mergeFailureCopy, mergingCopy, type MergeFailureReason, type TaskView } from '@mufu/core/view';
+import {
+  attentionSettingsPath,
+  mergeFailureCopy,
+  mergingCopy,
+  type MergeFailureReason,
+  type TaskView,
+} from '@mufu/core/view';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
@@ -37,6 +43,12 @@ function reviewLine(task: TaskView): string | null {
   const { ci } = task;
   const stats = ci.additions === null || ci.deletions === null ? '' : ` · +${ci.additions} −${ci.deletions}`;
   return `PR #${ci.pr} · ${ciWords(ci.state)} · ${mergeWords(ci.mergeable)}${stats}`;
+}
+
+function attentionAction(settingsPath: string | null, source: string | undefined): string {
+  if (settingsPath) return '去设置';
+  if (source === 'auth') return '重新登录';
+  return '去看看';
 }
 
 function summary(task: TaskView): string {
@@ -91,6 +103,7 @@ export function TaskCard({
   const [comment, setComment] = useState('');
   const [hint, setHint] = useState('');
   const review = task.status === 'to_review' && task.pendingGate;
+  const settingsPath = task.attention ? attentionSettingsPath(task.attention.source) : null;
   const kind = stageAgent(task);
   const identity = kind ? agentIdentity(kind) : null;
   return (
@@ -126,7 +139,13 @@ export function TaskCard({
           {task.title}
         </Link>
       </h3>
-      <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
+      {settingsPath ? (
+        <Link to={settingsPath} className="text-muted-foreground block truncate text-xs">
+          {summary(task)}
+        </Link>
+      ) : (
+        <p className="text-muted-foreground truncate text-xs">{summary(task)}</p>
+      )}
       <div className="text-muted-foreground mt-2.5 flex flex-wrap items-center gap-2 text-[11.5px]">
         {identity ? (
           <span
@@ -138,8 +157,8 @@ export function TaskCard({
         ) : null}
         <span className="ml-auto">{statusText(task, now)}</span>
         {task.attention ? (
-          <Link to={`/task/${task.id}`} className="text-foreground rounded-md border px-2 py-0.5">
-            {task.attention.source === 'auth' ? '重新登录' : '去看看'}
+          <Link to={settingsPath ?? `/task/${task.id}`} className="text-foreground rounded-md border px-2 py-0.5">
+            {attentionAction(settingsPath, task.attention.source)}
           </Link>
         ) : null}
         {review && task.diff ? (

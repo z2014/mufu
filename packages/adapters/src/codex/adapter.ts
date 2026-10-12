@@ -1,6 +1,7 @@
 import {
   PRODUCT_VERSION,
   SubscriptionRefused,
+  startupCopy,
   type AgentAdapter,
   type AgentEvent,
   type AgentSession,
@@ -8,8 +9,9 @@ import {
   type StartSession,
 } from '@mufu/core';
 
-import { scrubEnv } from '../env.ts';
+import { localCli, scrubEnv } from '../env.ts';
 import { EventQueue } from '../line-queue.ts';
+import { classifyLaunchError, coarseFailure } from '../startup.ts';
 import {
   approvalEvent,
   approvalResult,
@@ -49,7 +51,7 @@ export function createCodexAdapter(options?: {
   return {
     kind: 'codex',
     async startSession(input: StartSession): Promise<AgentSession> {
-      const bin = options?.bin ?? 'codex';
+      const bin = await localCli('codex', options?.bin, options?.env);
       const spawnEnv = scrubEnv(options?.env ?? process.env);
       const argv = codexLaunchArgs(bin);
       const transport = spawnTransport(argv, spawnEnv);
@@ -63,14 +65,16 @@ export function createCodexAdapter(options?: {
       let closed = false;
 
       const fail = (error: Error) => {
-        if (!closed)
-          events.push({
-            type: 'environment_failure',
-            message: error.message,
-            tool: 'codex',
-            source: error.message,
-            failure: 'auth',
-          });
+        if (closed) return;
+        const startup = classifyLaunchError('codex', error);
+        events.push({
+          type: 'environment_failure',
+          message: startupCopy(startup.kind, 'codex'),
+          raw: startup.raw,
+          tool: 'codex',
+          source: startup.kind,
+          failure: coarseFailure(startup.kind),
+        });
       };
 
       const send = (method: string, params: Json, expectReply: boolean): Promise<Json> => {
@@ -186,10 +190,16 @@ export function createCodexAdapter(options?: {
           },
         };
       } catch (error) {
-        if (!(error instanceof SubscriptionRefused)) fail(error instanceof Error ? error : new Error(String(error)));
+        if (error instanceof SubscriptionRefused) {
+          transport.close();
+          events.close();
+          throw error;
+        }
+        const startup = classifyLaunchError('codex', error);
+        fail(startup);
         transport.close();
         events.close();
-        throw error;
+        throw startup;
       }
     },
   };

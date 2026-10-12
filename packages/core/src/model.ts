@@ -138,7 +138,18 @@ export function unreadPinCount(pins: { read: boolean }[]): number {
   return pins.filter((pin) => !pin.read).length;
 }
 
-export type FailureKind = 'rate_limit' | 'auth' | 'network' | 'task' | 'conflict' | 'ci_failed' | 'environment';
+export type FailureKind =
+  | 'rate_limit'
+  | 'auth'
+  | 'network'
+  | 'task'
+  | 'conflict'
+  | 'ci_failed'
+  | 'environment'
+  | 'cli_not_found'
+  | 'not_logged_in'
+  | 'not_subscription'
+  | 'launch_failed';
 
 export type FailureReason = {
   kind: FailureKind;
@@ -146,7 +157,7 @@ export type FailureReason = {
 };
 
 /**
- * 限流、登录过期、断网，以及 gh 没登录或网络导致的合并失败，都不算尝试。
+ * 限流、登录过期、断网、找不到本机命令、没登录，以及 gh 没登录或网络导致的合并失败，都不算尝试。
  * 任务本身失败、合并冲突、CI 失败算尝试。
  */
 export function countsAsAttempt(reason: FailureReason): boolean {

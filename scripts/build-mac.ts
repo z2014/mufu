@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { bundleDaemon } from './bundle-daemon.ts';
+import { assertPackageOmitsPlatformSdk } from './platform-sdk.ts';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -39,7 +40,13 @@ async function main(): Promise<void> {
   await run('pnpm', ['--filter', '@mufu/app', 'build']);
   await bundleDaemon(repoRoot);
   await run('pnpm', ['--filter', '@mufu/app', 'exec', 'electron-builder', '--mac', '--config', 'electron-builder.yml']);
-  await adHocSign(join(repoRoot, 'release/mac-universal/mufu.app'));
+  const appPath = join(repoRoot, 'release/mac-universal/mufu.app');
+  await assertPackageOmitsPlatformSdk(
+    repoRoot,
+    join(appPath, 'Contents/Resources/app.asar'),
+    join(appPath, 'Contents'),
+  );
+  await adHocSign(appPath);
   process.stdout.write('打好了：release/mac-universal/mufu.app（ad-hoc 签名）。\n');
 }
 

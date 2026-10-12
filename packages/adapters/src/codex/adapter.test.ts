@@ -1,7 +1,11 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { SubscriptionRefused, type AgentEvent } from '@mufu/core';
 
+import { clearResolvedCli } from '../env.ts';
 import { LineQueue } from '../line-queue.ts';
 import { createCodexAdapter } from './adapter.ts';
 import type { CodexTransport } from './transport.ts';
@@ -90,6 +94,7 @@ describe('codex adapter sequencing', () => {
     const { sent, transport } = scripted({ account: { account: { type: 'apiKey' }, requiresOpenaiAuth: true } });
     let argv: string[] = [];
     const adapter = createCodexAdapter({
+      bin: 'codex',
       env: { OPENAI_API_KEY: 'sk-should-not-pass', PATH: '/usr/bin' },
       spawn: (nextArgv, env) => {
         expect(env.OPENAI_API_KEY).toBeUndefined();
@@ -108,7 +113,7 @@ describe('codex adapter sequencing', () => {
 
   it('resume 失败时不退回 thread/start', async () => {
     const { sent, transport } = scripted({ resumeError: 'missing rollout' });
-    const adapter = createCodexAdapter({ spawn: () => transport });
+    const adapter = createCodexAdapter({ bin: 'codex', spawn: () => transport });
     await expect(
       adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'again', resumeSessionId: 'thr_old' }),
     ).rejects.toThrow(/missing rollout/);
@@ -125,7 +130,7 @@ describe('codex adapter sequencing', () => {
       params: { itemId: 'item_early', threadId: 'thr_real', turnId: 'turn_1', command: 'echo probe', cwd: '/work' },
     };
     const { sent, transport } = scripted({ approval, foreignThread: true });
-    const adapter = createCodexAdapter({ spawn: () => transport });
+    const adapter = createCodexAdapter({ bin: 'codex', spawn: () => transport });
     const session = await adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' });
     expect(session.sessionId).toBe('thr_real');
     const collected: AgentEvent[] = [];
@@ -149,7 +154,7 @@ describe('codex adapter sequencing', () => {
 
   it('还没有 turnId 时 interrupt 不发请求', async () => {
     const { sent, transport } = scripted({ turnId: null });
-    const adapter = createCodexAdapter({ spawn: () => transport });
+    const adapter = createCodexAdapter({ bin: 'codex', spawn: () => transport });
     const session = await adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' });
     await session.interrupt();
     expect(methods(sent)).not.toContain('turn/interrupt');
@@ -157,10 +162,40 @@ describe('codex adapter sequencing', () => {
 
   it('有 turnId 时 interrupt 同时带 threadId 和 turnId', async () => {
     const { sent, transport } = scripted({});
-    const adapter = createCodexAdapter({ spawn: () => transport });
+    const adapter = createCodexAdapter({ bin: 'codex', spawn: () => transport });
     const session = await adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' });
     await session.interrupt();
     const interrupt = sent.find((message) => message.method === 'turn/interrupt');
     expect(interrupt?.params).toEqual({ threadId: 'thr_real', turnId: 'turn_1' });
+  });
+
+  it('不传 bin 时用登录 shell 里的本机 codex', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mufu-codex-bin-'));
+    const shell = join(dir, 'shell');
+    writeFileSync(shell, "#!/bin/sh\nprintf '%s\\n' /opt/bin/codex\n");
+    chmodSync(shell, 0o755);
+    const { transport } = scripted({});
+    let argv: string[] = [];
+    const adapter = createCodexAdapter({
+      env: { SHELL: shell, HOME: dir, PATH: '/empty' },
+      spawn: (next) => {
+        argv = next;
+        return transport;
+      },
+    });
+    try {
+      await adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' });
+      expect(argv[0]).toBe('/opt/bin/codex');
+      expect(argv.slice(1)).toEqual([
+        '--config',
+        'forced_login_method="chatgpt"',
+        'app-server',
+        '--listen',
+        'stdio://',
+      ]);
+    } finally {
+      clearResolvedCli();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
