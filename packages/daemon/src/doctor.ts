@@ -164,7 +164,7 @@ const defaultProbe: SubscriptionProbe = {
 };
 
 /**
- * 绝对路径来自登录 shell。订阅结论来自 Codex account/read 和 Claude system/init，
+ * 绝对路径来自登录 shell。订阅结论来自 Codex account/read 和 Claude initialize 的 account，
  * 不读取、不返回任何 key。环境里那三把变量只报告名字。
  */
 export async function doctor(input?: {

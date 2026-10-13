@@ -161,11 +161,17 @@ export function createCodexAdapter(options?: {
           transport.close();
           throw error;
         }
-        const result = (started.result ?? {}) as { thread?: { id?: string } };
+        const result = (started.result ?? {}) as { thread?: { id?: string }; model?: string };
         threadId = result.thread?.id ?? input.resumeSessionId ?? null;
         if (!threadId) throw new Error('thread 没有 id');
 
-        const turn = await send('turn/start', { threadId, input: [{ type: 'text', text: input.prompt }] }, true);
+        const modelReply = await send('model/list', {}, true);
+        const models = (modelReply.result as { data: Array<{ model: string; isDefault: boolean }> }).data;
+        const model = models.some((item) => item.model === result.model)
+          ? result.model
+          : models.find((item) => item.isDefault)?.model;
+        if (!model) throw new Error('Codex 没有可用模型');
+        const turn = await send('turn/start', { threadId, model, input: [{ type: 'text', text: input.prompt }] }, true);
         const turnResult = (turn.result ?? {}) as { turn?: { id?: string } };
         turnId = turnResult.turn?.id ?? null;
 
@@ -181,7 +187,7 @@ export function createCodexAdapter(options?: {
           },
           followUp(text: string) {
             if (!threadId) return;
-            void send('turn/start', { threadId, input: [{ type: 'text', text }] }, true).catch(() => undefined);
+            void send('turn/start', { threadId, model, input: [{ type: 'text', text }] }, true).catch(() => undefined);
           },
           async interrupt() {
             const interrupt = turnInterruptParams(threadId, turnId);

@@ -20,7 +20,9 @@ codex --config 'forced_login_method="chatgpt"' app-server --listen stdio://
 
 顺序：`initialize` → `initialized` → `account/read`。`account.type === "chatgpt"` 才继续。然后才是 `thread/start` 或 `thread/resume`，再 `turn/start`。不调用 `account/login/start`。
 
-恢复用原来的 thread id，并再次带上 `cwd`、`approvalPolicy: "onRequest"`、`sandbox: "workspaceWrite"`。失败不改走 `thread/start`，也不用 `thread/fork`。
+启动和恢复都带上 `cwd`、`approvalPolicy: "on-request"`、`sandbox: "workspace-write"`。恢复用原来的 thread id。失败不改走 `thread/start`，也不用 `thread/fork`。
+
+会话启动后读取 `model/list`。配置模型在可用列表中时沿用它，否则使用列表中 `isDefault` 为 `true` 的模型。`turn/start` 明确带上选定模型，不修改用户的全局配置。没有可用默认模型时停止任务。
 
 `turn/interrupt` 同时带 `threadId` 和 `turnId`。还没有 turn id 时不发。
 
@@ -54,7 +56,9 @@ codex --config 'forced_login_method="chatgpt"' app-server --listen stdio://
 
 `settings: { forceLoginMethod: "claudeai" }` 是这一次启动的 flag 层，相当于 `--settings`，不写 `~/.claude/settings.json`。
 
-prompt 是 AsyncIterable。`system/init` 的 `apiKeySource === "none"` 之后才把任务文本放出去。别的来源（`ANTHROPIC_API_KEY`、`apiKeyHelper`、`/login managed key`、缺字段、45 秒内没有 init）都拒绝。
+prompt 是 AsyncIterable。先用 `query.accountInfo()` 读取 `initialize` 的账号信息。只有 `apiProvider === "firstParty"`、`subscriptionType` 为 `Claude Pro`、`Claude Max`、`Claude Team` 或 `Claude Enterprise`，且 `apiKeySource` 缺省或为 `none` 时，才发送任务。API key 来源、其他服务商和缺失订阅信息都拒绝。
+
+`system/init` 在第一条提示后才出现，不能用它解锁提示。适配器仍核对它的 `apiKeySource === "none"`，并读取会话 id。初始化超过 45 秒时关闭进程。`doctor` 只读取 `accountInfo()`，不发送提示，超过 8 秒时关闭进程。
 
 会话 id 用 init 里的 `session_id`。恢复只设 `resume`，不设 `forkSession`。用户没有自己设 `CLAUDE_CODE_ENTRYPOINT` 时，把它写成 `cli`。
 
@@ -72,10 +76,10 @@ claude -p --output-format stream-json --verbose --input-format stream-json --per
 
 ## 订阅检查和配置文件
 
-| 工具   | 放行条件                                       | 不看                            |
-| ------ | ---------------------------------------------- | ------------------------------- |
-| Codex  | `account/read` 的 `account.type === "chatgpt"` | `codex login status`、API key   |
-| Claude | `system/init` 的 `apiKeySource === "none"`     | 环境变量里有没有 key 的名字本身 |
+| 工具   | 放行条件                                                                                    | 不看                            |
+| ------ | ------------------------------------------------------------------------------------------- | ------------------------------- |
+| Codex  | `account/read` 的 `account.type === "chatgpt"`                                              | `codex login status`、API key   |
+| Claude | `initialize.account` 确认第一方订阅；任务启动后再核对 `system/init.apiKeySource === "none"` | 环境变量里有没有 key 的名字本身 |
 
 `doctor` 用登录 shell 的 `command -v` 记绝对路径，并只读探测 `config.toml` 的 `api_key`、`auth.json` 的 apikey 模式、Claude settings 的 `apiKeyHelper`。探测结果不包含密钥原文。
 
@@ -88,6 +92,6 @@ claude -p --output-format stream-json --verbose --input-format stream-json --per
 3. 审批请求的方法名和字段，和上面的列表是否一致；shell、改文件、网络、MCP 是否都能截住。
 4. `turn/interrupt` 在带了 turn id 之后，回合是否真的停。
 5. `thread/resume` 是否还是同一个 thread id，策略有没有丢。
-6. Claude 的 `apiKeySource` 是否在任务文本送出之前就到；`forceLoginMethod` 能不能压过配置文件里的 `apiKeyHelper`。
+6. `forceLoginMethod` 能不能压过配置文件里的 `apiKeyHelper`。Claude Code 2.1.294 的 `accountInfo()` 已核对：订阅返回 `Claude Max`；API key 返回来源且不返回订阅类型。`system/init` 要等提示后才到。
 7. SDK 是否复用本机 `claude` 登录，而不是另要一把 API key。
 8. 恢复后的 session id 是否和 init 里的一样。

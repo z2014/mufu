@@ -2,6 +2,28 @@ import type { AgentEvent, OperationKind } from '@mufu/core';
 
 import { EventQueue } from '../line-queue.ts';
 
+export type ClaudeAccount = {
+  subscriptionType?: string;
+  apiProvider?: string;
+  apiKeySource?: string;
+  tokenSource?: string;
+};
+
+/** initialize 的 account 在发送提示之前返回；system/init 要等第一条提示。 */
+export function subscriptionFromClaudeAccount(account: ClaudeAccount): { ok: true } | { ok: false; source: string } {
+  if (
+    account.apiProvider === 'firstParty' &&
+    ['Claude Pro', 'Claude Max', 'Claude Team', 'Claude Enterprise'].includes(account.subscriptionType ?? '') &&
+    (account.apiKeySource === undefined || account.apiKeySource === 'none')
+  ) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    source: `account.subscriptionType=${account.subscriptionType ?? 'missing'}, apiProvider=${account.apiProvider ?? 'missing'}, apiKeySource=${account.apiKeySource ?? 'missing'}`,
+  };
+}
+
 /**
  * 只有 apiKeySource === 'none' 算订阅（claude.ai / 没有 API key）。
  * ANTHROPIC_API_KEY、apiKeyHelper、/login managed key 都拒绝。
@@ -108,7 +130,7 @@ type SdkUserMessage = {
 };
 
 /**
- * 任务提示留在迭代器里，等 system/init 确认是订阅登录再吐出。
+ * 任务提示留在迭代器里，等 initialize 的 account 确认是订阅登录再吐出。
  * 用 AsyncIterable 而不是字符串，避免 SDK 在 result 时关掉 stdin。
  */
 export function createPromptGate(prompt: string): {

@@ -12,16 +12,24 @@ import { localCli } from '../env.ts';
 import { EventQueue } from '../line-queue.ts';
 import { classifyLaunchError, coarseFailure } from '../startup.ts';
 import { buildClaudeLaunchOptions } from './options.ts';
-import { createPromptGate, normalizeClaudeMessage, operationForTool, subscriptionFromClaudeInit } from './protocol.ts';
+import {
+  createPromptGate,
+  normalizeClaudeMessage,
+  operationForTool,
+  subscriptionFromClaudeAccount,
+  subscriptionFromClaudeInit,
+  type ClaudeAccount,
+} from './protocol.ts';
 
 type QueryHandle = AsyncIterable<unknown> & {
+  accountInfo: () => Promise<ClaudeAccount>;
   interrupt?: () => Promise<unknown>;
   close?: () => void;
 };
 
 /**
  * 深模块：调用方只看到 startSession。
- * SDK 在运行时加载。确认 system/init 的 apiKeySource 之前，prompt 迭代器不吐出任务。
+ * SDK 在运行时加载。确认 initialize 的 account 之前，prompt 迭代器不吐出任务。
  */
 export function createClaudeAdapter(options?: {
   bin?: string;
@@ -111,7 +119,6 @@ export function createClaudeAdapter(options?: {
                 return;
               }
               finishVerdict({ ok: true, sessionId });
-              gate.allow();
             }
             const event = normalizeClaudeMessage(message);
             if (event) events.push(event);
@@ -140,19 +147,36 @@ export function createClaudeAdapter(options?: {
       })();
       void pump;
 
-      const decision = await Promise.race([
-        verdictReady,
-        new Promise<{ ok: false; source: string }>((resolve) => {
-          setTimeout(() => resolve({ ok: false, source: 'apiKeySource=missing(init timeout)' }), 45_000);
-        }),
-      ]);
-      if (!decision.ok) {
-        if (startupFailure) throw startupFailure;
-        throw new SubscriptionRefused('claude', decision.source);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const decision = await Promise.race([
+          (async () => {
+            const account = await query.accountInfo();
+            const subscription = subscriptionFromClaudeAccount(account);
+            if (!subscription.ok) throw new SubscriptionRefused('claude', subscription.source);
+            gate.allow();
+            return verdictReady;
+          })(),
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => reject(new Error('claude initialization timeout')), 45_000);
+          }),
+        ]);
+        if (!decision.ok) {
+          if (startupFailure) throw startupFailure;
+          throw new SubscriptionRefused('claude', decision.source);
+        }
+      } catch (error) {
+        gate.block();
+        gate.close();
+        query.close?.();
+        if (error instanceof SubscriptionRefused) throw error;
+        throw classifyLaunchError('claude', error);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
 
       return {
-        sessionId: decision.sessionId,
+        sessionId,
         events,
         async decide(requestId, decision) {
           const resolve = decisions.get(requestId);

@@ -143,6 +143,7 @@ describe('fix bug tracer', () => {
       expect(done.attempts).toBe(0);
       expect(done.runs).toBe(1);
       const events = await cliRun(['task', 'events', taskId!], home);
+      expect(events.code, events.stderr).toBe(0);
       expect(events.stdout).toContain('task.created');
       expect(events.stdout).toContain('gate.resolved');
       expect(events.stdout).toContain('merge_succeeded');

@@ -37,11 +37,12 @@ describe('codex pitfalls from other apps', () => {
     expect(turnInterruptParams('thr_1', 'turn_1')).toEqual({ threadId: 'thr_1', turnId: 'turn_1' });
   });
 
-  it('resume 带上 cwd 和 onRequest，而不是只带 threadId', () => {
-    expect(threadParams({ threadId: 'thr_1', cwd: '/work' })).toMatchObject({
-      threadId: 'thr_1',
+  it.each([undefined, 'thr_1'])('启动和恢复使用协议规定的审批与沙盒值：%s', (threadId) => {
+    expect(threadParams({ threadId, cwd: '/work' })).toMatchObject({
+      ...(threadId ? { threadId } : {}),
       cwd: '/work',
-      approvalPolicy: 'onRequest',
+      approvalPolicy: 'on-request',
+      sandbox: 'workspace-write',
     });
   });
 

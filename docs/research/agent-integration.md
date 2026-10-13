@@ -76,7 +76,7 @@ Claude：[`sdkOptionsBuilder.ts`](https://github.com/nimbalyst/nimbalyst/blob/ma
 | ----------------------------------------------- | -------------------------------------------------------------- |
 | 审批早于 `item/started`                         | 用请求的 `itemId` / JSON-RPC id，不等开始事件                  |
 | 恢复用 fork 或失败后改 `thread/start`           | 只发 `thread/resume`，失败就停                                 |
-| resume 不带策略                                 | resume 参数带上 cwd 和 `approvalPolicy: "onRequest"`           |
+| resume 不带策略                                 | resume 参数带上 cwd 和 `approvalPolicy: "on-request"`          |
 | interrupt 缺 `turnId`                           | 没有 turn id 就不发                                            |
 | 子线程通知                                      | `threadId` 不符的通知丢掉                                      |
 | 审批回复 null / `denied`                        | `accept`/`decline`，MCP 用 `{ action, content }`               |

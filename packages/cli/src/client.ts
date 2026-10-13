@@ -16,6 +16,7 @@ export async function callDaemon(method: string, params?: unknown): Promise<unkn
     });
     socket.on('data', (chunk: string) => {
       buffer += chunk;
+      if (!buffer.includes('\n')) return;
       const line = buffer.split('\n').find((item) => item.trim().length > 0);
       if (!line) return;
       socket.end();

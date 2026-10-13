@@ -12,6 +12,7 @@ import type { CodexTransport } from './transport.ts';
 
 type Script = {
   account?: unknown;
+  model?: string;
   resumeError?: string;
   turnId?: string | null;
   approval?: Record<string, unknown> | null;
@@ -46,7 +47,21 @@ function scripted(script: Script) {
       } else if (message.method === 'thread/resume' && script.resumeError) {
         incoming.push(JSON.stringify({ id, error: { message: script.resumeError } }));
       } else if (message.method === 'thread/start' || message.method === 'thread/resume') {
-        incoming.push(JSON.stringify({ id, result: { thread: { id: 'thr_real', sessionId: 'thr_real' } } }));
+        incoming.push(
+          JSON.stringify({ id, result: { thread: { id: 'thr_real', sessionId: 'thr_real' }, model: script.model } }),
+        );
+      } else if (message.method === 'model/list') {
+        incoming.push(
+          JSON.stringify({
+            id,
+            result: {
+              data: [
+                { model: 'default-model', isDefault: true },
+                { model: 'chosen-model', isDefault: false },
+              ],
+            },
+          }),
+        );
       } else if (message.method === 'turn/start') {
         const turnId = script.turnId === undefined ? 'turn_1' : script.turnId;
         incoming.push(JSON.stringify({ id, result: { turn: turnId ? { id: turnId } : {} } }));
@@ -90,6 +105,20 @@ function methods(sent: Array<Record<string, unknown>>): string[] {
 }
 
 describe('codex adapter sequencing', () => {
+  it.each([
+    ['chosen-model', 'chosen-model'],
+    ['unavailable-model', 'default-model'],
+  ])('配置模型 %s 使用可用模型 %s', async (configured, expected) => {
+    const { sent, transport } = scripted({ model: configured });
+    const adapter = createCodexAdapter({ bin: 'codex', spawn: () => transport });
+    const session = await adapter.startSession({ taskId: 't', workspacePath: '/work', prompt: 'fix' });
+    session.followUp?.('more');
+    const turns = sent.filter((message) => message.method === 'turn/start');
+    expect(turns).toHaveLength(2);
+    for (const turn of turns) expect(turn.params).toMatchObject({ model: expected });
+    await session.interrupt();
+  });
+
   it('apiKey 账号在 thread/start 和 turn/start 之前就被拒绝，且不会发起登录', async () => {
     const { sent, transport } = scripted({ account: { account: { type: 'apiKey' }, requiresOpenaiAuth: true } });
     let argv: string[] = [];
@@ -120,7 +149,12 @@ describe('codex adapter sequencing', () => {
     expect(methods(sent)).toContain('thread/resume');
     expect(methods(sent)).not.toContain('thread/start');
     const resume = sent.find((message) => message.method === 'thread/resume');
-    expect(resume?.params).toMatchObject({ threadId: 'thr_old', cwd: '/work', approvalPolicy: 'onRequest' });
+    expect(resume?.params).toMatchObject({
+      threadId: 'thr_old',
+      cwd: '/work',
+      approvalPolicy: 'on-request',
+      sandbox: 'workspace-write',
+    });
   });
 
   it('审批比 item/started 先到也能回复 accept，且丢掉别的 thread', async () => {

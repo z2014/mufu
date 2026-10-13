@@ -8,12 +8,29 @@ import {
   claudeCliFallbackArgs,
   createPromptGate,
   normalizeClaudeMessage,
+  subscriptionFromClaudeAccount,
   subscriptionFromClaudeInit,
 } from './protocol.ts';
 
 const handwritten = fileURLToPath(new URL('../../../../fixtures/handwritten/claude.jsonl', import.meta.url));
 
 describe('claude subscription gate', () => {
+  it('initialize account 只放行第一方订阅，API key 和缺失字段仍拒绝', () => {
+    const subscribed = { subscriptionType: 'Claude Max', apiProvider: 'firstParty' };
+    expect(subscriptionFromClaudeAccount(subscribed).ok).toBe(true);
+    for (const account of [
+      {},
+      { apiKeySource: 'none', apiProvider: 'firstParty' },
+      { ...subscribed, apiProvider: 'bedrock' },
+      { ...subscribed, subscriptionType: 'Claude Console' },
+      { ...subscribed, apiKeySource: 'apiKeyHelper' },
+      { ...subscribed, apiKeySource: 'ANTHROPIC_API_KEY' },
+      { ...subscribed, apiKeySource: '/login managed key' },
+    ]) {
+      expect(subscriptionFromClaudeAccount(account).ok).toBe(false);
+    }
+  });
+
   it('只有 apiKeySource=none 放行', () => {
     expect(subscriptionFromClaudeInit('none').ok).toBe(true);
     for (const source of ['ANTHROPIC_API_KEY', 'apiKeyHelper', '/login managed key', 'oauth', undefined]) {

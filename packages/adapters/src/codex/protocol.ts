@@ -37,8 +37,8 @@ export function threadParams(input: { threadId?: string; cwd: string; model?: st
   return {
     ...(input.threadId ? { threadId: input.threadId } : {}),
     cwd: input.cwd,
-    approvalPolicy: 'onRequest',
-    sandbox: 'workspaceWrite',
+    approvalPolicy: 'on-request',
+    sandbox: 'workspace-write',
     serviceName: 'mufu',
     ...(input.model ? { model: input.model } : {}),
   };
