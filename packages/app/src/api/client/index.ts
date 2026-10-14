@@ -21,15 +21,30 @@ const url = `ws://127.0.0.1:${port}`;
 
 let socket: WebSocket | null = null;
 let connecting: Promise<WebSocket> | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let nextId = 1;
 const pending = new Map<number, Pending>();
 const pushes = new Set<(method: string, params: unknown) => void>();
 
-/** 守护进程推来的事件。界面用它刷新查询，不自己轮询。 */
+/** 推送事件及连接成功通知。界面用它刷新查询，不自己轮询。 */
 export function onDaemonPush(listener: (method: string, params: unknown) => void): () => void {
   pushes.add(listener);
-  void connect().catch(() => undefined);
-  return () => pushes.delete(listener);
+  void connect().catch(scheduleReconnect);
+  return () => {
+    pushes.delete(listener);
+    if (pushes.size === 0 && reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+}
+
+function scheduleReconnect(): void {
+  if (pushes.size === 0 || reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void connect().catch(scheduleReconnect);
+  }, 1000);
 }
 
 function failAll(error: Error): void {
@@ -49,7 +64,10 @@ function openSocket(): Promise<WebSocket> {
     ws.addEventListener('open', () => {
       settled = true;
       socket = ws;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
       resolve(ws);
+      for (const listener of pushes) listener('connected', undefined);
     });
     ws.addEventListener('message', (event) => {
       const data = typeof event.data === 'string' ? event.data : '';
@@ -73,12 +91,14 @@ function openSocket(): Promise<WebSocket> {
       else waiter.resolve(parsed.result);
     });
     ws.addEventListener('error', () => {
-      fail('连不上本机服务。先在另一个终端运行 pnpm daemon');
+      fail('本机服务暂时不可用，正在重新连接。');
     });
     ws.addEventListener('close', () => {
+      if (!settled) fail('本机服务暂时不可用，正在重新连接。');
+      if (socket !== ws) return;
       socket = null;
-      if (!settled) fail('连不上本机服务。先在另一个终端运行 pnpm daemon');
       failAll(new DaemonError('和本机服务的连接断了'));
+      scheduleReconnect();
     });
   });
 }
@@ -86,7 +106,16 @@ function openSocket(): Promise<WebSocket> {
 function connect(): Promise<WebSocket> {
   if (socket?.readyState === WebSocket.OPEN) return Promise.resolve(socket);
   if (!connecting) {
-    connecting = openSocket().finally(() => {
+    connecting = (async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await openSocket();
+        } catch (error) {
+          if (attempt === 29) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    })().finally(() => {
       connecting = null;
     });
   }

@@ -38,6 +38,8 @@ codex --config 'forced_login_method="chatgpt"' app-server --listen stdio://
 
 回复是 `{ decision: "accept" | "decline" }`。MCP elicitation 是 `{ action, content }`。`threadId` 对不上的通知丢掉。
 
+正文只取 `item/completed` 中的 `agentMessage.text`。`item/agentMessage/delta` 不写入任务消息。每条正文完成后展示一次，避免流式片段和完整正文重复出现。
+
 限流、401/403、断流算环境失败，不计入尝试。助手正文里出现 “rate limit” 仍是普通消息。用量窗口按秒数分：604800 秒（或 10080 分钟）是每周，不超过 6 小时是会话窗口。
 
 官方写明：`forced_login_method` 和当前登录方式不一致时，Codex 会退出登录并结束进程。`verify:mac` 要观察这一步有没有把人登出。

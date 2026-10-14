@@ -76,9 +76,21 @@ describe('codex pitfalls from other apps', () => {
       'thr_1',
     );
     expect(prose).toMatchObject({ type: 'message', author: 'codex', text: 'the docs mention rate limit' });
-    expect(
-      normalizeCodexNotification({ method: 'item/agentMessage/delta', params: { delta: 'hi' } }, null),
-    ).toMatchObject({ type: 'message', author: 'codex', text: 'hi' });
+  });
+
+  it('流式片段加完整正文只生成一条消息，独立消息仍分别保留', () => {
+    const params = { threadId: 'thr_1', turnId: 'turn_1', itemId: 'msg_1' };
+    const notifications = [
+      { method: 'item/agentMessage/delta', params: { ...params, delta: '已' } },
+      { method: 'item/agentMessage/delta', params: { ...params, delta: '修复' } },
+      { method: 'item/completed', params: { ...params, item: { id: 'msg_1', type: 'agentMessage', text: '已修复' } } },
+      { method: 'item/completed', params: { ...params, item: { id: 'msg_2', type: 'agentMessage', text: '验收通过' } } },
+    ];
+    const events = notifications.map((message) => normalizeCodexNotification(message, 'thr_1')).filter(Boolean);
+    expect(events).toEqual([
+      { type: 'message', author: 'codex', text: '已修复' },
+      { type: 'message', author: 'codex', text: '验收通过' },
+    ]);
   });
 
   it('手写夹具里审批可以早于 item/started，四种操作都能认出来', () => {

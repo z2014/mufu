@@ -137,6 +137,8 @@ release/mac-universal/mufu.app/Contents/MacOS/mufu
 
 打开之后不需要终端。应用会在 `~/Library/LaunchAgents/com.mufu.daemon.plist` 安装或刷新一个用户级 LaunchAgent（不是 LaunchDaemon），用包里的绝对路径跑守护进程，然后窗口连上它。任务日志在 `~/Library/Application Support/mufu`，重启还在。
 
+窗口会等待守护进程启动。连接失败时，窗口每隔 500 毫秒重试一次，最多尝试 30 次。服务仍不可用时，窗口显示连接错误，并继续在后台重连。连接恢复后，窗口自动刷新任务和连接检查。如果此时再运行 `pnpm daemon`，端口被占用通常表示应用已启动了守护进程，不需要再启动一份。
+
 卸掉这个 LaunchAgent：
 
 ```bash

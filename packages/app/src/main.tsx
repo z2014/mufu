@@ -13,6 +13,10 @@ function LiveTasks() {
   useEffect(
     () =>
       onDaemonPush((method) => {
+        if (method === 'connected') {
+          void queryClient.invalidateQueries();
+          return;
+        }
         if (method !== 'event') return;
         void queryClient.invalidateQueries({ queryKey: taskKeys.all });
       }),

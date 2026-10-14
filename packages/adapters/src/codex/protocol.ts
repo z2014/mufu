@@ -165,11 +165,6 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
   if (isForeignThread(message, ownThreadId)) return null;
   const { method } = message;
   const params = asRecord(message.params) ?? {};
-  if (method === 'item/agentMessage/delta') {
-    const delta = typeof params.delta === 'string' ? params.delta : '';
-    if (!delta) return null;
-    return { type: 'message', author: 'codex', text: delta };
-  }
   if (method === 'error') {
     const error = asRecord(params.error) ?? params;
     const info = asRecord(error.codexErrorInfo) ?? asRecord(params.codexErrorInfo);
@@ -212,6 +207,7 @@ export function normalizeCodexNotification(message: Json, ownThreadId: string | 
     if (status === 'completed') return { type: 'completed', ok: true };
   }
   const item = asRecord(params.item);
+  // 和 Claude 一样，只展示完整正文，流式片段不单独写成消息。
   if (method === 'item/completed' && item?.type === 'agentMessage' && typeof item.text === 'string') {
     return { type: 'message', author: 'codex', text: item.text };
   }
